@@ -24,12 +24,14 @@ const State = {
   BUFFER_FLUSH : 8
 };
 
-class MSEMediaController {
+class MSEMediaController extends EventHandler {
 
   constructor(hls) {
     super(hls,
+      Event.MEDIA_ATTACHED,
       Event.MEDIA_ATTACHING,
       Event.MEDIA_DETACHING,
+      Event.MEDIA_DETACHED,
       Event.MANIFEST_PARSED,
       Event.LEVEL_LOADED,
       Event.KEY_LOADED,
@@ -637,6 +639,10 @@ class MSEMediaController {
     }
   }
 
+  onMediaAttached() {
+
+  }
+
   onMediaAttaching(data) {
     var media = this.media = data.media;
     // setup the media source
@@ -655,21 +661,8 @@ class MSEMediaController {
   onMediaDetaching() {
     var media = this.media;
     if (media && media.ended) {
-      logger.log('MSE detaching and video ended, reset startPosition');
+      logger.log('Media dettaching, reset startPosition');
       this.startPosition = this.lastCurrentTime = 0;
-    }
-
-    // reset fragment loading counter on MSE detaching to avoid reporting FRAG_LOOP_LOADING_ERROR after error recovery
-    var levels = this.levels;
-    if (levels) {
-      // reset fragment load counter
-        levels.forEach(level => {
-          if(level.details) {
-            level.details.fragments.forEach(fragment => {
-              fragment.loadCounter = undefined;
-            });
-          }
-      });
     }
 
     this.hls.trigger(Event.BUFFER_EOS);
@@ -687,14 +680,17 @@ class MSEMediaController {
       this.sourceBuffer = null;
     }
 
+    var ms = this.mediaSource;
     ms.removeEventListener('sourceopen', this.onmso);
     ms.removeEventListener('sourceended', this.onmse);
     ms.removeEventListener('sourceclose', this.onmsc);
     this.onmso = this.onmse = this.onmsc = null;
-    // unlink MediaSource from video tag
-    this.media.src = '';
-    this.mediaSource = null;
-    // remove media listeners
+
+    this.hls.trigger(Event.MEDIA_DETACHED);
+  }
+
+  onMediaDetached() {
+    var media = this.media;
     if (media) {
       media.removeEventListener('seeking', this.onvseeking);
       media.removeEventListener('seeked', this.onvseeked);
@@ -702,11 +698,23 @@ class MSEMediaController {
       media.removeEventListener('ended', this.onvended);
       this.onvseeking = this.onvseeked = this.onvmetadata = null;
     }
+    this.media.src = '';
     this.media = null;
     this.loadedmetadata = false;
     this.stop();
 
-    this.hls.trigger(Event.MEDIA_DETACHED);
+    // reset fragment loading counter on MSE detaching to avoid reporting FRAG_LOOP_LOADING_ERROR after error recovery
+    var levels = this.levels;
+    if (levels) {
+      // reset fragment load counter
+        levels.forEach(level => {
+          if(level.details) {
+            level.details.fragments.forEach(fragment => {
+              fragment.loadCounter = undefined;
+            });
+          }
+      });
+    }
   }
 
   onMediaSeeking() {
@@ -926,31 +934,27 @@ class MSEMediaController {
   }
 
   onFragParsingData(data) {
-    if (this.state === State.PARSING) {
-      this.tparse2 = Date.now();
-      var level = this.levels[this.level],
-          frag = this.fragCurrent;
-      logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
-      var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS);
-      this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.level, drift: drift});
+    this.tparse2 = Date.now();
+    var level = this.levels[this.level],
+        frag = this.fragCurrent;
+    logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
+    var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS);
+    this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.level, drift: drift});
 
-      if (this.media.error) {
-        logger.error('trying to append although a media error occured, switch to ERROR state');
-        this.state = State.ERROR;
-        return;
-      }
-
-      this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.moof});
-      this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.mdat});
-
-      this.nextLoadPosition = data.endPTS;
-      this.bufferRange.push({type: data.type, start: data.startPTS, end: data.endPTS, frag: frag});
-
-      //trigger handler right now
-      this.tick();
-    } else {
-      logger.warn(`not in PARSING state, ignoring FRAG_PARSING_DATA event`);
+    if (this.media.error) {
+      logger.error('trying to append although a media error occured, switch to ERROR state');
+      this.state = State.ERROR;
+      return;
     }
+
+    this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.moof});
+    this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.mdat});
+
+    this.nextLoadPosition = data.endPTS;
+    this.bufferRange.push({type: data.type, start: data.startPTS, end: data.endPTS, frag: frag});
+
+    //trigger handler right now
+    this.tick();
   }
 
   onFragParsed() {
@@ -1098,7 +1102,6 @@ class MSEMediaController {
 
   onBufferEos() {
     var ms = this.mediaSource;
-    var media = this.media;
     if (!ms) {
       return;
     }
