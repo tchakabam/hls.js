@@ -342,13 +342,6 @@ class MSEMediaController {
         this.state = State.IDLE;
         break;
 
-      /*
-        abort any buffer append in progress, and flush all buffered data
-        return true once everything has been flushed.
-        sourceBuffer.abort() and sourceBuffer.remove() are asynchronous operations
-        the idea is to call this function from tick() timer and call it again until all resources have been cleaned
-        the timer is rearmed upon sourceBuffer updateend() event, so this should be optimal
-      */
       case State.BUFFER_FLUSH:
         // send flush events for all ranges
         if (this.flushRange.length) {
