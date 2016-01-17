@@ -638,10 +638,7 @@ class MSEMediaController extends EventHandler {
     }
   }
 
-  onMediaAttached() {
-
-  }
-
+  // Sets up MediaSource event listeners
   onMediaAttaching(data) {
     var media = this.media = data.media;
     // setup the media source
@@ -653,19 +650,34 @@ class MSEMediaController extends EventHandler {
     ms.addEventListener('sourceopen', this.onmso);
     ms.addEventListener('sourceended', this.onmse);
     ms.addEventListener('sourceclose', this.onmsc);
+  }
+
+  // Sets up Media element URL and event listeners
+  onMediaAttached(data) {
+    var media = this.media;
+    var url = data.mediaURL;
     // link video and media Source
-    media.src = URL.createObjectURL(ms);
+    media.src = url;
+    // attach media events
+    this.onvseeking = this.onMediaSeeking.bind(this);
+    this.onvseeked = this.onMediaSeeked.bind(this);
+    this.onvmetadata = this.onMediaMetadata.bind(this);
+    this.onvended = this.onMediaEnded.bind(this);
+    media.addEventListener('seeking', this.onvseeking);
+    media.addEventListener('seeked', this.onvseeked);
+    media.addEventListener('loadedmetadata', this.onvmetadata);
+    media.addEventListener('ended', this.onvended);
+    // triggers start of state machine
+    if(this.levels && this.config.autoStartLoad) {
+      this.startLoad();
+    }
   }
 
   onMediaDetaching() {
-    var media = this.media;
-    if (media && media.ended) {
-      logger.log('Media dettaching, reset startPosition');
-      this.startPosition = this.lastCurrentTime = 0;
-    }
-
+    // Signal MediaSource to append EOS
     this.hls.trigger(Event.BUFFER_EOS);
 
+    // Eventually remove SourceBuffer events and clean-up
     if (this.sourceBuffer) {
       for(var type in this.sourceBuffer) {
         var sb = this.sourceBuffer[type];
@@ -679,17 +691,27 @@ class MSEMediaController extends EventHandler {
       this.sourceBuffer = null;
     }
 
+    // Dettach from all MediaSource events
     var ms = this.mediaSource;
     ms.removeEventListener('sourceopen', this.onmso);
     ms.removeEventListener('sourceended', this.onmse);
     ms.removeEventListener('sourceclose', this.onmsc);
     this.onmso = this.onmse = this.onmsc = null;
 
+    // Signal that we're done here
     this.hls.trigger(Event.MEDIA_DETACHED);
   }
 
   onMediaDetached() {
     var media = this.media;
+
+    // Reset position if media is ended
+    if (media && media.ended) {
+      logger.log('Media ended, reset position to zero');
+      this.startPosition = this.lastCurrentTime = 0;
+    }
+
+    // Reset media element state
     if (media) {
       media.removeEventListener('seeking', this.onvseeking);
       media.removeEventListener('seeked', this.onvseeked);
@@ -700,6 +722,8 @@ class MSEMediaController extends EventHandler {
     this.media.src = '';
     this.media = null;
     this.loadedmetadata = false;
+
+    // Shutdown everything
     this.stop();
 
     // reset fragment loading counter on MSE detaching to avoid reporting FRAG_LOOP_LOADING_ERROR after error recovery
@@ -1072,8 +1096,8 @@ class MSEMediaController extends EventHandler {
       this.mp4segments.unshift(segment);
 
       // just ignore QuotaExceededError for now, and wait for the natural browser buffer eviction
-      //http://www.w3.org/TR/html5/infrastructure.html#quotaexceedederror
-	  if(err.code === 22) {
+      // http://www.w3.org/TR/html5/infrastructure.html#quotaexceedederror
+      if(err.code === 22) {
         return;
       }
 
@@ -1106,12 +1130,16 @@ class MSEMediaController extends EventHandler {
     }
 
     if (ms.readyState === 'open') {
-      // ensure sourceBuffer are not in updating stateyes
+      // ensure SourceBuffers are not in updating states
       var sb = this.sourceBuffer;
       if (!((sb.audio && sb.audio.updating) || (sb.video && sb.video.updating))) {
         logger.log('all media data available, signal endOfStream() to MediaSource');
-        //Notify the media element that it now has all of the media data
-        ms.endOfStream();
+        // Notify the media element that it now has all of the media data
+        try {
+          ms.endOfStream();
+        } catch() {
+          this.needEos = true;
+        }
       } else {
         this.needEos = true;
       }
@@ -1132,7 +1160,7 @@ class MSEMediaController extends EventHandler {
     //logger.log('flushBuffer,pos/start/end: ' + this.media.currentTime + '/' + startOffset + '/' + endOffset);
 
     // clear anything that was in the segment queue (pending for appending) before the flush
-    this.segmentQueue = [];
+    this.mp4segments = [];
 
     if (this.sourceBuffer) {
       for (var type in this.sourceBuffer) {
@@ -1343,19 +1371,7 @@ class MSEMediaController extends EventHandler {
 
   onMediaSourceOpen() {
     logger.log('media source opened');
-    this.hls.trigger(Event.MEDIA_ATTACHED);
-    this.onvseeking = this.onMediaSeeking.bind(this);
-    this.onvseeked = this.onMediaSeeked.bind(this);
-    this.onvmetadata = this.onMediaMetadata.bind(this);
-    this.onvended = this.onMediaEnded.bind(this);
-    var media = this.media;
-    media.addEventListener('seeking', this.onvseeking);
-    media.addEventListener('seeked', this.onvseeked);
-    media.addEventListener('loadedmetadata', this.onvmetadata);
-    media.addEventListener('ended', this.onvended);
-    if(this.levels && this.config.autoStartLoad) {
-      this.startLoad();
-    }
+    this.hls.trigger(Event.MEDIA_ATTACHED, {mediaURL: URL.createObjectURL(this.mediaSource)});
     // once received, don't listen anymore to sourceopen event
     this.mediaSource.removeEventListener('sourceopen', this.onmso);
   }
