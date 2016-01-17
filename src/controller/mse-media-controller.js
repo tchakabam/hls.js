@@ -629,7 +629,6 @@ class MSEMediaController extends EventHandler {
       }
     }
     if (this.flushRange.length) {
-      this.flushBufferCounter = 0;
       // trigger a sourceBuffer flush
       this.state = State.BUFFER_FLUSH;
       // increase fragment load Index to avoid frag loop loading error after buffer flush
@@ -938,7 +937,7 @@ class MSEMediaController extends EventHandler {
     var level = this.levels[this.level],
         frag = this.fragCurrent;
     logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
-    var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS);
+    var drift = LevelHelper.updateFragPTS(level.details, frag.sn, data.startPTS, data.endPTS);
     this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.level, drift: drift});
 
     if (this.media.error) {
