@@ -641,7 +641,7 @@ class MSEMediaController {
     var media = this.media = data.media;
     // setup the media source
     var ms = this.mediaSource = new MediaSource();
-    //Media Source listeners
+    // MediaSource listeners
     this.onmso = this.onMediaSourceOpen.bind(this);
     this.onmse = this.onMediaSourceEnded.bind(this);
     this.onmsc = this.onMediaSourceClose.bind(this);
@@ -687,7 +687,24 @@ class MSEMediaController {
       this.sourceBuffer = null;
     }
 
+    ms.removeEventListener('sourceopen', this.onmso);
+    ms.removeEventListener('sourceended', this.onmse);
+    ms.removeEventListener('sourceclose', this.onmsc);
     this.onmso = this.onmse = this.onmsc = null;
+    // unlink MediaSource from video tag
+    this.media.src = '';
+    this.mediaSource = null;
+    // remove media listeners
+    if (media) {
+      media.removeEventListener('seeking', this.onvseeking);
+      media.removeEventListener('seeked', this.onvseeked);
+      media.removeEventListener('loadedmetadata', this.onvmetadata);
+      media.removeEventListener('ended', this.onvended);
+      this.onvseeking = this.onvseeked = this.onvmetadata = null;
+    }
+    this.media = null;
+    this.loadedmetadata = false;
+    this.stop();
 
     this.hls.trigger(Event.MEDIA_DETACHED);
   }
@@ -1082,36 +1099,20 @@ class MSEMediaController {
   onBufferEos() {
     var ms = this.mediaSource;
     var media = this.media;
-    if (ms) {
-      if (ms.readyState === 'open') {
-        // ensure sourceBuffer are not in updating stateyes
-        var sb = this.sourceBuffer;
-        if (!((sb.audio && sb.audio.updating) || (sb.video && sb.video.updating))) {
-          logger.log('all media data available, signal endOfStream() to MediaSource');
-          //Notify the media element that it now has all of the media data
-          ms.endOfStream();
-        } else {
-          this.needEos = true;
-        }
-      }
+    if (!ms) {
+      return;
+    }
 
-      ms.removeEventListener('sourceopen', this.onmso);
-      ms.removeEventListener('sourceended', this.onmse);
-      ms.removeEventListener('sourceclose', this.onmsc);
-      // unlink MediaSource from video tag
-      this.media.src = '';
-      this.mediaSource = null;
-      // remove video listeners
-      if (media) {
-        media.removeEventListener('seeking', this.onvseeking);
-        media.removeEventListener('seeked', this.onvseeked);
-        media.removeEventListener('loadedmetadata', this.onvmetadata);
-        media.removeEventListener('ended', this.onvended);
-        this.onvseeking = this.onvseeked = this.onvmetadata = null;
+    if (ms.readyState === 'open') {
+      // ensure sourceBuffer are not in updating stateyes
+      var sb = this.sourceBuffer;
+      if (!((sb.audio && sb.audio.updating) || (sb.video && sb.video.updating))) {
+        logger.log('all media data available, signal endOfStream() to MediaSource');
+        //Notify the media element that it now has all of the media data
+        ms.endOfStream();
+      } else {
+        this.needEos = true;
       }
-      this.media = null;
-      this.loadedmetadata = false;
-      this.stop();
     }
   }
 
