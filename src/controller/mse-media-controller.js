@@ -20,8 +20,8 @@ const State = {
   WAITING_LEVEL : 'WAITING_LEVEL',
   PARSING : 'PARSING',
   PARSED : 'PARSED',
-  APPENDING : 7,
-  BUFFER_FLUSH : 8
+  APPENDING : 'APPENDING',
+  BUFFER_FLUSH : 'BUFFER_FLUSH'
 };
 
 class MSEMediaController extends EventHandler {
