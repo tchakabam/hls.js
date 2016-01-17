@@ -20,13 +20,14 @@ const State = {
   PARSING : 4,
   PARSED : 5,
   APPENDING : 6,
-  BUFFER_FLUSHING : 7
+  BUFFER_FLUSH : 7
 };
 
 class MSEMediaController {
 
   constructor(hls) {
-    super(hls, Event.MEDIA_ATTACHING,
+    super(hls,
+      Event.MEDIA_ATTACHING,
       Event.MEDIA_DETACHING,
       Event.MANIFEST_PARSED,
       Event.LEVEL_LOADED,
@@ -35,12 +36,23 @@ class MSEMediaController {
       Event.FRAG_PARSING_INIT_SEGMENT,
       Event.FRAG_PARSING_DATA,
       Event.FRAG_PARSED,
+      Event.BUFFER_CODECS,
+      Event.BUFFER_APPENDING,
+      Event.BUFFER_APPEND_FAIL,
+      Event.BUFFER_APPENDED,
+      Event.BUFFER_EOS,
+      Event.BUFFER_FLUSHING,
+      Event.BUFFER_FLUSHED,
       Event.ERROR);
     this.config = hls.config;
-    // Source Buffer listeners
+
+    // SourceBuffer listeners
     this.onsbue = this.onSBUpdateEnd.bind(this);
     this.onsbe  = this.onSBUpdateError.bind(this);
     this.ontick = this.tick.bind(this);
+
+    this.flushOperatioQueue = [];
+    this.needEos = false;
   }
 
   destroy() {
@@ -90,18 +102,6 @@ class MSEMediaController {
       this.fragCurrent = null;
     }
     this.fragPrevious = null;
-    if (this.sourceBuffer) {
-      for(var type in this.sourceBuffer) {
-        var sb = this.sourceBuffer[type];
-        try {
-          this.mediaSource.removeSourceBuffer(sb);
-          sb.removeEventListener('updateend', this.onsbue);
-          sb.removeEventListener('error', this.onsbe);
-        } catch(err) {
-        }
-      }
-      this.sourceBuffer = null;
-    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -246,16 +246,7 @@ class MSEMediaController {
                 } else {
                   // have we reached end of VOD playlist ?
                   if (!levelDetails.live) {
-                    var mediaSource = this.mediaSource;
-                    if (mediaSource && mediaSource.readyState === 'open') {
-                      // ensure sourceBuffer are not in updating stateyes
-                      var sb = this.sourceBuffer;
-                      if (!((sb.audio && sb.audio.updating) || (sb.video && sb.video.updating))) {
-                        logger.log('all media data available, signal endOfStream() to MediaSource');
-                        //Notify the media element that it now has all of the media data
-                        mediaSource.endOfStream();
-                      }
-                    }
+                    this.hls.trigger(Event.BUFFER_EOS);
                   }
                   frag = null;
                 }
@@ -345,84 +336,28 @@ class MSEMediaController {
         }
         break;
       case State.PARSING:
-        // nothing to do, wait for fragment being parsed
-        break;
       case State.PARSED:
       case State.APPENDING:
-        if (this.sourceBuffer) {
-          if (this.media.error) {
-            logger.error('trying to append although a media error occured, switch to ERROR state');
-            this.state = State.ERROR;
-            return;
-          }
-          // if MP4 segment appending in progress nothing to do
-          else if ((this.sourceBuffer.audio && this.sourceBuffer.audio.updating) ||
-             (this.sourceBuffer.video && this.sourceBuffer.video.updating)) {
-            //logger.log('sb append in progress');
-        // check if any MP4 segments left to append
-          } else if (this.mp4segments.length) {
-            var segment = this.mp4segments.shift();
-            try {
-              //logger.log(`appending ${segment.type} SB, size:${segment.data.length});
-              this.sourceBuffer[segment.type].appendBuffer(segment.data);
-              this.appendError = 0;
-            } catch(err) {
-              // in case any error occured while appending, put back segment in mp4segments table
-              //logger.error(`error while trying to append buffer:${err.message},try appending later`);
-              this.mp4segments.unshift(segment);
-              if (this.appendError) {
-                this.appendError++;
-              } else {
-                this.appendError = 1;
-              }
-              var event = {type: ErrorTypes.MEDIA_ERROR, details: ErrorDetails.BUFFER_APPEND_ERROR, frag: this.fragCurrent};
-              /* with UHD content, we could get loop of quota exceeded error until
-                browser is able to evict some data from sourcebuffer. retrying help recovering this
-              */
-              if (this.appendError > this.config.appendErrorMaxRetry) {
-                logger.log(`fail ${this.config.appendErrorMaxRetry} times to append segment in sourceBuffer`);
-                event.fatal = true;
-                hls.trigger(Event.ERROR, event);
-                this.state = State.ERROR;
-                return;
-              } else {
-                event.fatal = false;
-                hls.trigger(Event.ERROR, event);
-              }
-            }
-            this.state = State.APPENDING;
-          }
-        } else {
-          // sourceBuffer undefined, switch back to IDLE state
-          this.state = State.IDLE;
-        }
+        // nothing to do here (FIXME: can we get rid of these "states"?)
+        this.state = State.IDLE;
         break;
-      case State.BUFFER_FLUSHING:
-        // loop through all buffer ranges to flush
-        while(this.flushRange.length) {
-          var range = this.flushRange[0];
-          // flushBuffer will abort any buffer append in progress and flush Audio/Video Buffer
-          if (this.flushBuffer(range.start, range.end)) {
-            // range flushed, remove from flush array
-            this.flushRange.shift();
-          } else {
-            // flush in progress, come back later
-            break;
-          }
+
+      /*
+        abort any buffer append in progress, and flush all buffered data
+        return true once everything has been flushed.
+        sourceBuffer.abort() and sourceBuffer.remove() are asynchronous operations
+        the idea is to call this function from tick() timer and call it again until all resources have been cleaned
+        the timer is rearmed upon sourceBuffer updateend() event, so this should be optimal
+      */
+      case State.BUFFER_FLUSH:
+        // send flush events for all ranges
+        if (this.flushRange.length) {
+          logger.log('buffer flushing');
+          this.flushRange.forEach(function(range) {
+            this.hls.trigger(Event.BUFFER_FLUSHING, {startOffset: range.start, endOffset: range.end});
+          }.bind(this));
+          this.flushRange = [];
         }
-        if (this.flushRange.length === 0) {
-          // handle end of immediate switching if needed
-          if (this.immediateSwitch) {
-            this.immediateLevelSwitchEnd();
-          }
-          // move to IDLE once flush complete. this should trigger new fragment loading
-          this.state = State.IDLE;
-          // reset reference to frag
-          this.fragPrevious = null;
-        }
-         /* if not everything flushed, stay in BUFFER_FLUSHING state. we will come back here
-            each time sourceBuffer updateend() callback will be triggered
-            */
         break;
       default:
         break;
@@ -589,69 +524,6 @@ class MSEMediaController {
   }
 
   /*
-    abort any buffer append in progress, and flush all buffered data
-    return true once everything has been flushed.
-    sourceBuffer.abort() and sourceBuffer.remove() are asynchronous operations
-    the idea is to call this function from tick() timer and call it again until all resources have been cleaned
-    the timer is rearmed upon sourceBuffer updateend() event, so this should be optimal
-  */
-  flushBuffer(startOffset, endOffset) {
-    var sb, i, bufStart, bufEnd, flushStart, flushEnd;
-    //logger.log('flushBuffer,pos/start/end: ' + this.media.currentTime + '/' + startOffset + '/' + endOffset);
-    // safeguard to avoid infinite looping
-    if (this.flushBufferCounter++ < (2 * this.bufferRange.length) && this.sourceBuffer) {
-      for (var type in this.sourceBuffer) {
-        sb = this.sourceBuffer[type];
-        if (!sb.updating) {
-          for (i = 0; i < sb.buffered.length; i++) {
-            bufStart = sb.buffered.start(i);
-            bufEnd = sb.buffered.end(i);
-            // workaround firefox not able to properly flush multiple buffered range.
-            if (navigator.userAgent.toLowerCase().indexOf('firefox') !== -1 && endOffset === Number.POSITIVE_INFINITY) {
-              flushStart = startOffset;
-              flushEnd = endOffset;
-            } else {
-              flushStart = Math.max(bufStart, startOffset);
-              flushEnd = Math.min(bufEnd, endOffset);
-            }
-            /* sometimes sourcebuffer.remove() does not flush
-               the exact expected time range.
-               to avoid rounding issues/infinite loop,
-               only flush buffer range of length greater than 500ms.
-            */
-            if (flushEnd - flushStart > 0.5) {
-              logger.log(`flush ${type} [${flushStart},${flushEnd}], of [${bufStart},${bufEnd}], pos:${this.media.currentTime}`);
-              sb.remove(flushStart, flushEnd);
-              return false;
-            }
-          }
-        } else {
-          //logger.log('abort ' + type + ' append in progress');
-          // this will abort any appending in progress
-          //sb.abort();
-          return false;
-        }
-      }
-    }
-
-    /* after successful buffer flushing, rebuild buffer Range array
-      loop through existing buffer range and check if
-      corresponding range is still buffered. only push to new array already buffered range
-    */
-    var newRange = [],range;
-    for (i = 0; i < this.bufferRange.length; i++) {
-      range = this.bufferRange[i];
-      if (this.isBuffered((range.start + range.end) / 2)) {
-        newRange.push(range);
-      }
-    }
-    this.bufferRange = newRange;
-    logger.log('buffer flushed');
-    // everything flushed !
-    return true;
-  }
-
-  /*
     on immediate level switch :
      - pause playback if playing
      - cancel any pending load request
@@ -670,10 +542,9 @@ class MSEMediaController {
     }
     this.fragCurrent = null;
     // flush everything
-    this.flushBufferCounter = 0;
     this.flushRange.push({start: 0, end: Number.POSITIVE_INFINITY});
     // trigger a sourceBuffer flush
-    this.state = State.BUFFER_FLUSHING;
+    this.state = State.BUFFER_FLUSH;
     // increase fragment load Index to avoid frag loop loading error after buffer flush
     this.fragLoadIdx += 2 * this.config.fragLoadingLoopThreshold;
     // speed up switching, trigger timer function
@@ -737,7 +608,7 @@ class MSEMediaController {
     if (this.flushRange.length) {
       this.flushBufferCounter = 0;
       // trigger a sourceBuffer flush
-      this.state = State.BUFFER_FLUSHING;
+      this.state = State.BUFFER_FLUSH;
       // increase fragment load Index to avoid frag loop loading error after buffer flush
       this.fragLoadIdx += 2 * this.config.fragLoadingLoopThreshold;
       // speed up switching, trigger timer function
@@ -781,30 +652,24 @@ class MSEMediaController {
           }
       });
     }
-    var ms = this.mediaSource;
-    if (ms) {
-      if (ms.readyState === 'open') {
-        ms.endOfStream();
+
+    this.hls.trigger(Event.BUFFER_EOS);
+
+    if (this.sourceBuffer) {
+      for(var type in this.sourceBuffer) {
+        var sb = this.sourceBuffer[type];
+        try {
+          this.mediaSource.removeSourceBuffer(sb);
+          sb.removeEventListener('updateend', this.onsbue);
+          sb.removeEventListener('error', this.onsbe);
+        } catch(err) {
+        }
       }
-      ms.removeEventListener('sourceopen', this.onmso);
-      ms.removeEventListener('sourceended', this.onmse);
-      ms.removeEventListener('sourceclose', this.onmsc);
-      // unlink MediaSource from video tag
-      this.media.src = '';
-      this.mediaSource = null;
-      // remove video listeners
-      if (media) {
-        media.removeEventListener('seeking', this.onvseeking);
-        media.removeEventListener('seeked', this.onvseeked);
-        media.removeEventListener('loadedmetadata', this.onvmetadata);
-        media.removeEventListener('ended', this.onvended);
-        this.onvseeking = this.onvseeked = this.onvmetadata = null;
-      }
-      this.media = null;
-      this.loadedmetadata = false;
-      this.stop();
+      this.sourceBuffer = null;
     }
+
     this.onmso = this.onmse = this.onmsc = null;
+
     this.hls.trigger(Event.MEDIA_DETACHED);
   }
 
@@ -968,7 +833,8 @@ class MSEMediaController {
     if (this.state === State.PARSING) {
       // check if codecs have been explicitely defined in the master playlist for this level;
       // if yes use these ones instead of the ones parsed from the demux
-      var audioCodec = this.levels[this.level].audioCodec, videoCodec = this.levels[this.level].videoCodec, sb;
+      var audioCodec = this.levels[this.level].audioCodec,
+          videoCodec = this.levels[this.level].videoCodec;
       //logger.log('playlist level A/V codecs:' + audioCodec + ',' + videoCodec);
       //logger.log('playlist codecs:' + codec);
       // if playlist does not specify codecs, use codecs found while parsing fragment
@@ -987,27 +853,9 @@ class MSEMediaController {
           ua.indexOf('firefox') === -1) {
         audioCodec = 'mp4a.40.5';
       }
-      if (!this.sourceBuffer) {
-        this.sourceBuffer = {};
-        logger.log(`selected A/V codecs for sourceBuffers:${audioCodec},${videoCodec}`);
-        // create source Buffer and link them to MediaSource
-        if (audioCodec) {
-          sb = this.sourceBuffer.audio = this.mediaSource.addSourceBuffer(`video/mp4;codecs=${audioCodec}`);
-          sb.addEventListener('updateend', this.onsbue);
-          sb.addEventListener('error', this.onsbe);
-        }
-        if (videoCodec) {
-          sb = this.sourceBuffer.video = this.mediaSource.addSourceBuffer(`video/mp4;codecs=${videoCodec}`);
-          sb.addEventListener('updateend', this.onsbue);
-          sb.addEventListener('error', this.onsbe);
-        }
-      }
-      if (audioCodec) {
-        this.mp4segments.push({type: 'audio', data: data.audioMoov});
-      }
-      if(videoCodec) {
-        this.mp4segments.push({type: 'video', data: data.videoMoov});
-      }
+
+      this.hls.trigger(Event.BUFFER_CODECS, {audioCodec: audioCodec, videoCodec: videoCodec});
+
       //trigger handler right now
       this.tick();
     }
@@ -1022,8 +870,15 @@ class MSEMediaController {
       var drift = LevelHelper.updateFragPTS(level.details,frag.sn,data.startPTS,data.endPTS);
       this.hls.trigger(Event.LEVEL_PTS_UPDATED, {details: level.details, level: this.level, drift: drift});
 
-      this.mp4segments.push({type: data.type, data: data.moof});
-      this.mp4segments.push({type: data.type, data: data.mdat});
+      if (this.media.error) {
+        logger.error('trying to append although a media error occured, switch to ERROR state');
+        this.state = State.ERROR;
+        return;
+      }
+
+      this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.moof});
+      this.hls.trigger(Event.BUFFER_APPENDING, {type: data.type, data: data.mdat});
+
       this.nextLoadPosition = data.endPTS;
       this.bufferRange.push({type: data.type, start: data.startPTS, end: data.endPTS, frag: frag});
 
@@ -1062,23 +917,274 @@ class MSEMediaController {
     }
   }
 
-  onSBUpdateEnd() {
-    //trigger handler right now
-    if (this.state === State.APPENDING && this.mp4segments.length === 0)  {
-      var frag = this.fragCurrent, stats = this.stats;
-      if (frag) {
-        this.fragPrevious = frag;
-        stats.tbuffered = performance.now();
-        this.fragLastKbps = Math.round(8 * stats.length / (stats.tbuffered - stats.tfirst));
-        this.hls.trigger(Event.FRAG_BUFFERED, {stats: stats, frag: frag});
-        logger.log(`media buffered : ${this.timeRangesToString(this.media.buffered)}`);
-        this.state = State.IDLE;
+  onBufferCodecs(data) {
+    var sb;
+    var audioCodec = data.audioCodec;
+    var videoCodec = data.videoCodec;
+
+    if (!this.sourceBuffer) {
+      this.sourceBuffer = {};
+      logger.log(`selected A/V codecs for sourceBuffers:${audioCodec},${videoCodec}`);
+      // create source Buffer and link them to MediaSource
+      if (audioCodec) {
+        sb = this.sourceBuffer.audio = this.mediaSource.addSourceBuffer(`video/mp4;codecs=${audioCodec}`);
+        sb.addEventListener('updateend', this.onsbue);
+        sb.addEventListener('error', this.onsbe);
+      }
+      if (videoCodec) {
+        sb = this.sourceBuffer.video = this.mediaSource.addSourceBuffer(`video/mp4;codecs=${videoCodec}`);
+        sb.addEventListener('updateend', this.onsbue);
+        sb.addEventListener('error', this.onsbe);
       }
     }
+
+    if (audioCodec) {
+      this.mp4segments.push({type: 'audio', data: data.audioMoov});
+    }
+    if(videoCodec) {
+      this.mp4segments.push({type: 'video', data: data.videoMoov});
+    }
+  }
+
+  onBufferAppending(data) {
+    this.mp4segments.push(data);
+    this.dequeueMp4Segments();
+  }
+
+  dequeueMp4Segments() {
+    // SourceBuffer doesn't exist yet
+    if (!this.sourceBuffer) {
+      return;
+    }
+
+    // SourceBuffers still updating
+    if ((this.sourceBuffer.audio && this.sourceBuffer.audio.updating) ||
+      (this.sourceBuffer.video && this.sourceBuffer.video.updating)) {
+      return;
+    }
+
+    // Nothing to dequeue
+    if (!this.mp4segments.length) {
+      return;
+    }
+
+    var segment = this.mp4segments.shift();
+    try {
+      //logger.log(`appending ${segment.type} SB, size:${segment.data.length});
+      this.sourceBuffer[segment.type].appendBuffer(segment.data);
+      this.appendError = 0;
+      this.hls.trigger(Event.BUFFER_APPENDED);
+    } catch(err) {
+      // in case any error occured while appending, put back segment in mp4segments table
+      //logger.error(`error while trying to append buffer:${err.message},try appending later`);
+      this.mp4segments.unshift(segment);
+      if (this.appendError) {
+        this.appendError++;
+      } else {
+        this.appendError = 1;
+      }
+      this.hls.trigger(Event.BUFFER_APPEND_FAIL);
+    }
+  }
+
+  onBufferAppendFail() {
+    var hls = this.hls;
+    var event = {type: ErrorTypes.MEDIA_ERROR, details: ErrorDetails.BUFFER_APPEND_ERROR, frag: this.fragCurrent};
+    /* with UHD content, we could get loop of quota exceeded error until
+      browser is able to evict some data from sourcebuffer. retrying help recovering this
+    */
+    if (this.appendError > this.config.appendErrorMaxRetry) {
+      logger.log(`fail ${this.config.appendErrorMaxRetry} times to append segment in sourceBuffer`);
+      event.fatal = true;
+      hls.trigger(Event.ERROR, event);
+      this.state = State.ERROR;
+    } else {
+      event.fatal = false;
+      hls.trigger(Event.ERROR, event);
+    }
+  }
+
+  onBufferEos() {
+    var ms = this.mediaSource;
+    var media = this.media;
+    if (ms) {
+      if (ms.readyState === 'open') {
+        // ensure sourceBuffer are not in updating stateyes
+        var sb = this.sourceBuffer;
+        if (!((sb.audio && sb.audio.updating) || (sb.video && sb.video.updating))) {
+          logger.log('all media data available, signal endOfStream() to MediaSource');
+          //Notify the media element that it now has all of the media data
+          ms.endOfStream();
+        } else {
+          this.needEos = true;
+        }
+      }
+
+      ms.removeEventListener('sourceopen', this.onmso);
+      ms.removeEventListener('sourceended', this.onmse);
+      ms.removeEventListener('sourceclose', this.onmsc);
+      // unlink MediaSource from video tag
+      this.media.src = '';
+      this.mediaSource = null;
+      // remove video listeners
+      if (media) {
+        media.removeEventListener('seeking', this.onvseeking);
+        media.removeEventListener('seeked', this.onvseeked);
+        media.removeEventListener('loadedmetadata', this.onvmetadata);
+        media.removeEventListener('ended', this.onvended);
+        this.onvseeking = this.onvseeked = this.onvmetadata = null;
+      }
+      this.media = null;
+      this.loadedmetadata = false;
+      this.stop();
+    }
+  }
+
+  /*
+    abort any buffer append in progress, and flush all buffered data
+    return true once everything has been flushed.
+    sourceBuffer.abort() and sourceBuffer.remove() are asynchronous operations
+    the idea is to call this function from tick() timer and call it again until all resources have been cleaned
+    the timer is rearmed upon sourceBuffer updateend() event, so this should be optimal
+  */
+  onBufferFlushing(data) {
+    var startOffset = data.startOffset;
+    var endOffset = data.endOffset;
+    var sb, i, bufStart, bufEnd, flushStart, flushEnd;
+    //logger.log('flushBuffer,pos/start/end: ' + this.media.currentTime + '/' + startOffset + '/' + endOffset);
+
+    // clear anything that was in the segment queue (pending for appending) before the flush
+    this.segmentQueue = [];
+
+    if (this.sourceBuffer) {
+      for (var type in this.sourceBuffer) {
+        sb = this.sourceBuffer[type];
+
+        for (i = 0; i < sb.buffered.length; i++) {
+          bufStart = sb.buffered.start(i);
+          bufEnd = sb.buffered.end(i);
+          // workaround firefox not able to properly flush multiple buffered range.
+          if (navigator.userAgent.toLowerCase().indexOf('firefox') !== -1 && endOffset === Number.POSITIVE_INFINITY) {
+            flushStart = startOffset;
+            flushEnd = endOffset;
+          } else {
+            flushStart = Math.max(bufStart, startOffset);
+            flushEnd = Math.min(bufEnd, endOffset);
+          }
+
+          this.enqueueFlushOperation(type, bufStart, bufEnd, sb, flushStart, flushEnd);
+        }
+
+      }
+    }
+  }
+
+  ensureFlushed() {
+    this.flushOperatioQueue.slice().forEach(function(flushSourceBuffer, index) {
+      if (flushSourceBuffer()) {
+        // remove item from queue if operation succeeded
+        this.flushOperatioQueue.splice(index, 1);
+      }
+      // if we performed all flush operations trigger event to notify that we're done
+      if (this.flushOperatioQueue.length === 0) {
+        this.hls.trigger(Event.BUFFER_FLUSHED);
+      }
+    }.bind(this));
+  }
+
+  isFlushing() {
+    return this.flushOperatioQueue.length;
+  }
+
+  enqueueFlushOperation(type, bufStart, bufEnd, sb, flushStart, flushEnd) {
+
+    const currentTime = this.media.currentTime;
+
+    /*
+      abort any buffer append in progress, and flush all buffered data
+      return true once everything has been flushed.
+      sourceBuffer.abort() and sourceBuffer.remove() are asynchronous operations
+      the idea is to call this function from tick() timer and call it again until all resources have been cleaned
+      the timer is rearmed upon sourceBuffer updateend() event, so this should be optimal
+    */
+    function flushSourceBuffer(sb, flushStart, flushEnd) {
+      /* sometimes sourcebuffer.remove() does not flush
+         the exact expected time range.
+         to avoid rounding issues/infinite loop,
+         only flush buffer range of length greater than 500ms.
+      */
+      if (sb.updating) {
+        return false;
+      }
+      if (flushEnd - flushStart > 0.5) {
+        try {
+          sb.remove(flushStart, flushEnd);
+          logger.log(`flushed ${type} [${flushStart},${flushEnd}], of [${bufStart},${bufEnd}], pos:${currentTime}`);
+          return true;
+        } catch(e) {
+          return false;
+        }
+      }
+    }
+
+    // Enqueue the flush operation
+    this.flushOperatioQueue.push(function() {
+      return flushSourceBuffer(sb, flushStart, flushEnd);
+    });
+
+    // Attempt to run the flush operations right away!
+    this.ensureFlushed();
+  }
+
+  onBufferFlushed() {
+    logger.log('buffer flushed!');
+
+    /* after successful buffer flushing, rebuild buffer Range array
+      loop through existing buffer range and check if
+      corresponding range is still buffered. only push to new array already buffered range
+    */
+    var newRange = [],range;
+    for (var i = 0; i < this.bufferRange.length; i++) {
+      range = this.bufferRange[i];
+      if (this.isBuffered((range.start + range.end) / 2)) {
+        newRange.push(range);
+      }
+    }
+    this.bufferRange = newRange;
+    logger.log('updated buffered range');
+
+    // handle end of immediate switching if needed
+    if (this.immediateSwitch) {
+      this.immediateLevelSwitchEnd();
+    }
+    // move to IDLE once flush complete. this should trigger new fragment loading
+    this.state = State.IDLE;
+    // reset reference to frag
+    this.fragPrevious = null;
+  }
+
+  onSBUpdateEnd() {
+    //trigger handler right now
+    var frag = this.fragCurrent, stats = this.stats;
+    if (frag) {
+      this.fragPrevious = frag;
+      stats.tbuffered = performance.now();
+      this.fragLastKbps = Math.round(8 * stats.length / (stats.tbuffered - stats.tfirst));
+      this.hls.trigger(Event.FRAG_BUFFERED, {stats: stats, frag: frag});
+      logger.log(`media buffered : ${this.timeRangesToString(this.media.buffered)}`);
+      this.state = State.IDLE;
+    }
+
+    this.dequeueMp4Segments();
+
+    if (this.needEos) {
+      this.hls.trigger(Event.BUFFER_EOS);
+    }
+
     this.tick();
   }
 
-_checkBuffer() {
+  _checkBuffer() {
     var media = this.media;
     if(media) {
       // compare readyState
