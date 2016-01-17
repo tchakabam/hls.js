@@ -870,7 +870,7 @@ class MSEMediaController {
     if (this.state === State.PARSING) {
       // check if codecs have been explicitely defined in the master playlist for this level;
       // if yes use these ones instead of the ones parsed from the demux
-      var audioCodec = this.levels[this.level].audioCodec, 
+      var audioCodec = this.levels[this.level].audioCodec,
           videoCodec = this.levels[this.level].videoCodec;
       this.lastAudioCodec = data.audioCodec;
       if(audioCodec && this.audioCodecSwap) {
@@ -1250,11 +1250,19 @@ class MSEMediaController {
       this.state = State.IDLE;
     }
 
-    this.dequeueMp4Segments();
-
     if (this.needEos) {
       this.hls.trigger(Event.BUFFER_EOS);
+      return;
     }
+
+    // make sure we have performed any pending flush operations
+    if (this.isFlushing()) {
+      this.ensureFlushed();
+      // don't dequeue any segment
+      return;
+    }
+
+    this.dequeueMp4Segments();
 
     this.tick();
   }
