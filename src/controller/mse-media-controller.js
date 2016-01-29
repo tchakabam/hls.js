@@ -47,6 +47,7 @@ class MSEMediaController extends EventHandler {
       Event.BUFFER_FLUSHING,
       Event.BUFFER_FLUSHED,
       Event.ERROR);
+
     this.config = hls.config;
     this.audioCodecSwap = false;
     this.ticks = 0;
@@ -640,6 +641,7 @@ class MSEMediaController extends EventHandler {
 
   // Sets up MediaSource event listeners
   onMediaAttaching(data) {
+    console.log('onMediaAttaching');
     var media = this.media = data.media;
     // setup the media source
     var ms = this.mediaSource = new MediaSource();
@@ -650,14 +652,13 @@ class MSEMediaController extends EventHandler {
     ms.addEventListener('sourceopen', this.onmso);
     ms.addEventListener('sourceended', this.onmse);
     ms.addEventListener('sourceclose', this.onmsc);
+    // link video and media Source
+    media.src = URL.createObjectURL(ms);
   }
 
   // Sets up Media element URL and event listeners
-  onMediaAttached(data) {
+  onMediaAttached() {
     var media = this.media;
-    var url = data.mediaURL;
-    // link video and media Source
-    media.src = url;
     // attach media events
     this.onvseeking = this.onMediaSeeking.bind(this);
     this.onvseeked = this.onMediaSeeked.bind(this);
@@ -1137,7 +1138,7 @@ class MSEMediaController extends EventHandler {
         // Notify the media element that it now has all of the media data
         try {
           ms.endOfStream();
-        } catch() {
+        } catch(e) {
           this.needEos = true;
         }
       } else {
@@ -1371,7 +1372,7 @@ class MSEMediaController extends EventHandler {
 
   onMediaSourceOpen() {
     logger.log('media source opened');
-    this.hls.trigger(Event.MEDIA_ATTACHED, {mediaURL: URL.createObjectURL(this.mediaSource)});
+    this.hls.trigger(Event.MEDIA_ATTACHED);
     // once received, don't listen anymore to sourceopen event
     this.mediaSource.removeEventListener('sourceopen', this.onmso);
   }
