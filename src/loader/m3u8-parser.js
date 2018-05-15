@@ -1,16 +1,21 @@
 
 import URLToolkit from 'url-toolkit';
 
-import Fragment from './fragment';
-import LevelKey from './level-key';
+import Playlist from './playlist';
 
 import AttrList from '../utils/attr-list';
+
 import { logger } from '../utils/logger';
 import { isCodecType } from '../utils/codecs';
 
 /**
- * M3U8 parser
  * @module
+ * 
+ * M3U8 parser
+ * 
+ * Takes in M3U8 data as UTF8 strings. 
+ * Creates Playlist data-model instance containing level/track infos
+ * and actual segment references (Array of Fragment objects).
  */
 
 // https://regex101.com is your friend
@@ -63,7 +68,10 @@ export default class M3U8Parser {
 
   static parseMasterPlaylist (string, baseurl) {
     let levels = [], result;
-    MASTER_PLAYLIST_REGEX.lastIndex = 0;
+    
+    const regex = MASTER_PLAYLIST_REGEX;
+
+    regex.lastIndex = 0;
 
     function setCodecs (codecs, level) {
       ['video', 'audio'].forEach((type) => {
@@ -82,7 +90,7 @@ export default class M3U8Parser {
       level.unknownCodecs = codecs;
     }
 
-    while ((result = MASTER_PLAYLIST_REGEX.exec(string)) != null) {
+    while ((result = regex.exec(string)) != null) {
       const level = {};
 
       let attrs = level.attrs = new AttrList(result[1]);
@@ -108,11 +116,15 @@ export default class M3U8Parser {
   }
 
   static parseMasterPlaylistMedia (string, baseurl, type, audioGroups = []) {
+    const regex = MASTER_PLAYLIST_MEDIA_REGEX;
+
     let result;
     let medias = [];
     let id = 0;
-    MASTER_PLAYLIST_MEDIA_REGEX.lastIndex = 0;
-    while ((result = MASTER_PLAYLIST_MEDIA_REGEX.exec(string)) !== null) {
+    
+    regex.lastIndex = 0;
+
+    while ((result = regex.exec(string)) !== null) {
       const media = {};
       const attrs = new AttrList(result[1]);
       if (attrs.TYPE === type) {
@@ -142,10 +154,15 @@ export default class M3U8Parser {
     return medias;
   }
 
-  static parseLevelPlaylist (string, baseurl, id, type) {
+  static parseLevelPlaylist (string, baseUrl, id, type) {
+    const regex = LEVEL_PLAYLIST_REGEX_FAST;
+
     let currentSN = 0,
-      totalduration = 0,
-      level = { type: null, version: null, url: baseurl, fragments: [], live: true, startSN: 0 },
+      totalDuration = 0,
+
+      level = { type: null, version: null, url: baseUrl, fragments: [], live: true, startSN: 0 },
+
+
       levelkey = new LevelKey(),
       cc = 0,
       prevFrag = null,
@@ -153,9 +170,9 @@ export default class M3U8Parser {
       result,
       i;
 
-    LEVEL_PLAYLIST_REGEX_FAST.lastIndex = 0;
+    regex.lastIndex = 0;
 
-    while ((result = LEVEL_PLAYLIST_REGEX_FAST.exec(string)) !== null) {
+    while ((result = regex.exec(string)) !== null) {
       const duration = result[1];
       if (duration) { // INF
         frag.duration = parseFloat(duration);
@@ -167,12 +184,12 @@ export default class M3U8Parser {
         if (!isNaN(frag.duration)) {
           const sn = currentSN++;
           frag.type = type;
-          frag.start = totalduration;
+          frag.start = totalDuration;
           frag.levelkey = levelkey;
           frag.sn = sn;
           frag.level = id;
           frag.cc = cc;
-          frag.baseurl = baseurl;
+          frag.baseurl = baseUrl;
           // avoid sliced strings    https://github.com/video-dev/hls.js/issues/939
           frag.relurl = (' ' + result[3]).slice(1);
 
@@ -191,7 +208,7 @@ export default class M3U8Parser {
 
           level.fragments.push(frag);
           prevFrag = frag;
-          totalduration += frag.duration;
+          totalDuration += frag.duration;
 
           frag = new Fragment();
         }
@@ -208,7 +225,7 @@ export default class M3U8Parser {
         frag.rawProgramDateTime = (' ' + result[5]).slice(1);
         frag.tagList.push(['PROGRAM-DATE-TIME', frag.rawProgramDateTime]);
         if (level.programDateTime === undefined) {
-          level.programDateTime = new Date(new Date(Date.parse(result[5])) - 1000 * totalduration);
+          level.programDateTime = new Date(new Date(Date.parse(result[5])) - 1000 * totalDuration);
         }
       } else {
         result = result[0].match(LEVEL_PLAYLIST_REGEX_SLOW);
@@ -262,7 +279,7 @@ export default class M3U8Parser {
             if ((decrypturi) && (['AES-128', 'SAMPLE-AES', 'SAMPLE-AES-CENC'].indexOf(decryptmethod) >= 0)) {
               levelkey.method = decryptmethod;
               // URI to get the key
-              levelkey.baseuri = baseurl;
+              levelkey.baseuri = baseUrl;
               levelkey.reluri = decrypturi;
               levelkey.key = null;
               // Initialization Vector (IV)
@@ -284,7 +301,7 @@ export default class M3U8Parser {
           let mapAttrs = new AttrList(value1);
           frag.relurl = mapAttrs.URI;
           frag.rawByteRange = mapAttrs.BYTERANGE;
-          frag.baseurl = baseurl;
+          frag.baseurl = baseUrl;
           frag.level = id;
           frag.type = type;
           frag.sn = 'initSegment';
@@ -301,10 +318,10 @@ export default class M3U8Parser {
     // logger.log('found ' + level.fragments.length + ' fragments');
     if (frag && !frag.relurl) {
       level.fragments.pop();
-      totalduration -= frag.duration;
+      totalDuration -= frag.duration;
     }
-    level.totalduration = totalduration;
-    level.averagetargetduration = totalduration / level.fragments.length;
+    level.totalduration = totalDuration;
+    level.averagetargetduration = totalDuration / level.fragments.length;
     level.endSN = currentSN - 1;
     level.startCC = level.fragments[0] ? level.fragments[0].cc : 0;
     level.endCC = cc;
@@ -320,7 +337,7 @@ export default class M3U8Parser {
 
         frag = new Fragment();
         frag.relurl = level.fragments[0].relurl;
-        frag.baseurl = baseurl;
+        frag.baseurl = baseUrl;
         frag.level = id;
         frag.type = type;
         frag.sn = 'initSegment';

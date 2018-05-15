@@ -229,6 +229,7 @@ export default class Hls {
 
     /**
      * @member {ICoreComponent[]}
+     * @deprecated
      */
     this.coreComponents = coreComponents;
   }
