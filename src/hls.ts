@@ -391,7 +391,7 @@ export default class Hls extends Observer {
 
     Controller = config.subtitleStreamController;
     if (Controller) {
-      this.subtitleStreamController = new Controller(this);
+      this.subtitleStreamController = new Controller(this, fragmentTracker);
       coreComponents.push(this.subtitleStreamController);
     }
 
