@@ -1,4 +1,4 @@
-import Event from '../../../src/events.js';
+import Event from '../../../src/events';
 import Demuxer from '../../../src/demux/demuxer.js';
 
 const assert = require('assert');

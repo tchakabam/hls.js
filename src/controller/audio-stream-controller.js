@@ -55,8 +55,8 @@ class AudioStreamController extends TaskLoop {
       Event.BUFFER_APPENDED,
       Event.BUFFER_FLUSHED,
       Event.INIT_PTS_FOUND);
+
     this.fragmentTracker = fragmentTracker;
-    this.config = hls.config;
     this.audioCodecSwap = false;
     this._state = State.STOPPED;
     this.initPTS = [];

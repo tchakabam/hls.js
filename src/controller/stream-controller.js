@@ -56,7 +56,6 @@ class StreamController extends TaskLoop {
       Event.BUFFER_FLUSHED);
 
     this.fragmentTracker = fragmentTracker;
-    this.config = hls.config;
     this.audioCodecSwap = false;
     this._state = State.STOPPED;
     this.stallReported = false;

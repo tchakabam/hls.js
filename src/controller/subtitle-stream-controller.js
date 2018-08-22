@@ -35,7 +35,6 @@ class SubtitleStreamController extends TaskLoop {
       Event.SUBTITLE_FRAG_PROCESSED);
 
     this.fragmentTracker = fragmentTracker;
-    this.config = hls.config;
     this.state = State.STOPPED;
     this.tracksBuffered = [];
     this.currentTrackId = -1;

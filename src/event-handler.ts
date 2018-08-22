@@ -8,7 +8,7 @@ import { logger } from './utils/logger';
 import { ErrorTypes, ErrorDetails } from './errors';
 import { Event } from './events';
 
-import Hls from './hls';
+import Hls, { HlsConfig } from './hls';
 
 const _logger: any = logger;
 
@@ -45,6 +45,10 @@ abstract class EventHandler {
 
   get hls (): Hls {
     return this._hls;
+  }
+
+  get config (): HlsConfig {
+    return this._hls.config;
   }
 
   destroy () {

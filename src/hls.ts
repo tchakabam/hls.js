@@ -270,7 +270,7 @@ export default class Hls extends Observer {
     Hls._defaultConfig = defaultConfig;
   }
 
-  public config: HlsConfig;
+  private _config: HlsConfig;
 
   // Fixme: should be in cap-controller
   private _autoLevelCapping: number;
@@ -308,7 +308,7 @@ export default class Hls extends Observer {
 
     enableLogs(config.debug);
 
-    this.config = Object.assign(config, Hls.DefaultConfig);
+    this._config = Object.assign(config, Hls.DefaultConfig);
 
     if ((config.liveSyncDurationCount || config.liveMaxLatencyDurationCount) && (config.liveSyncDuration || config.liveMaxLatencyDuration)) {
       throw new Error('Illegal hls.js config: don\'t mix up liveSyncDurationCount/liveMaxLatencyDurationCount and liveSyncDuration/liveMaxLatencyDuration');
@@ -409,6 +409,10 @@ export default class Hls extends Observer {
       this.emeController = emeController;
       coreComponents.push(emeController);
     }
+  }
+
+  get config (): HlsConfig {
+    return this._config;
   }
 
   /**
@@ -681,7 +685,7 @@ export default class Hls extends Observer {
   get minAutoLevel (): number {
     const hls = this;
     const levels = hls.levels;
-    const minAutoBitrate = hls.config.minAutoBitrate;
+    const minAutoBitrate = hls._config.minAutoBitrate;
     const len = levels ? levels.length : 0;
 
     for (let i = 0; i < len; i++) {

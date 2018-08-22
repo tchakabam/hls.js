@@ -20,14 +20,11 @@ export class FragmentTracker extends EventHandler {
 
     this.fragments = Object.create(null);
     this.timeRanges = Object.create(null);
-
-    this.config = hls.config;
   }
 
   destroy () {
     this.fragments = null;
     this.timeRanges = null;
-    this.config = null;
     EventHandler.prototype.destroy.call(this);
     super.destroy();
   }

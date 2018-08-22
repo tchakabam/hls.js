@@ -1,10 +1,12 @@
-const pkgJson = require('./package.json');
+const glob = require("glob");
 const path = require('path');
 const webpack = require('webpack');
 const {merge} = require('webpack-assembler');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const getGitVersion = require('git-tag-version');
 const getGitCommitInfo = require('git-commit-info');
+
+const pkgJson = require('./package.json');
 
 /* Allow to customise builds through env-vars */
 const env = process.env;
@@ -52,6 +54,22 @@ const demoConfig = merge(baseConfig, {
   },
   plugins: [],
   devtool: 'source-map'
+});
+
+const unitTestsConfig = merge(baseConfig, {
+  name: 'tests',
+  mode: 'development',
+  entry: glob.sync("./tests/unit/**/*.js"),
+  output: {
+    filename: 'hls-unit-tests.js',
+    publicPath: '/dist/',
+    path: path.resolve(__dirname, 'dist'),
+    library: 'HlsUnitTests',
+    libraryTarget: 'umd',
+    libraryExport: 'default'
+  },
+  devtool: 'inline-source-map',
+  plugins: getPluginsForConfig('main')
 });
 
 function getPluginsForConfig(type, minify = false) {
@@ -211,10 +229,10 @@ const multiConfig = [
 ].map(config => merge(baseConfig, config));
 
 multiConfig.push(demoConfig);
+multiConfig.push(unitTestsConfig);
 
 // webpack matches the --env arguments to a string; for example, --env.debug.min translates to { debug: true, min: true }
 module.exports = (envArgs) => {
-
   let configs;
 
   if (!envArgs) {
@@ -233,7 +251,7 @@ module.exports = (envArgs) => {
       throw new Error('Hls.js webpack config: Invalid environment parameters');
     }
 
-    configs = [enabledConfig, demoConfig];
+    configs = [enabledConfig, demoConfig, unitTestsConfig];
   }
 
   console.log(
