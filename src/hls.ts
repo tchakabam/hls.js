@@ -209,6 +209,11 @@ export type SubtitleTrack = AlternateMediaTrack & {
 
 };
 
+/**
+ * @module Hls
+ * @class
+ * @constructor
+ */
 export default class Hls extends Observer {
   private static _defaultConfig: HlsConfig;
 
@@ -317,6 +322,10 @@ export default class Hls extends Observer {
       throw new Error('Illegal hls.js config: "liveMaxLatencyDuration" must be gt "liveSyncDuration"');
     }
 
+    /**
+     * @private
+     * @member {number}
+     */
     this._autoLevelCapping = -1;
 
     // core controllers and network loaders
@@ -414,7 +423,6 @@ export default class Hls extends Observer {
     });
     this.url = null;
     this.removeAllListeners();
-    this._autoLevelCapping = -1;
   }
 
   /**
@@ -645,8 +653,8 @@ export default class Hls extends Observer {
    * Capping/max level value that should be used by automatic level selection algorithm (`ABRController`)
    * @type {number}
    */
-  set autoLevelCapping (newLevel: number) {
-    _logger.log(`set autoLevelCapping: ${newLevel}`);
+  set autoLevelCapping (newLevel) {
+    logger.log(`set autoLevelCapping: ${newLevel}`);
     this._autoLevelCapping = newLevel;
   }
 

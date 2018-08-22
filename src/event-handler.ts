@@ -13,6 +13,8 @@ import Hls from './hls';
 const _logger: any = logger;
 
 // These are forbidden as they clash with the base class interface
+const DEBUG_LOG_ENABLED_DEFAULT = false;
+
 const FORBIDDEN_EVENT_NAMES = new Set([
   'hlsEventGeneric',
   'hlsHandlerDestroying',
@@ -23,6 +25,7 @@ abstract class EventHandler {
   private _hls: Hls;
   private _handledEvents: string[];
   private _useGenericHandler: boolean;
+  private _debugLogEnabled: boolean;
 
   constructor (hls: Hls, ...events: Event[]) {
     this._hls = hls;
@@ -30,6 +33,12 @@ abstract class EventHandler {
     this._useGenericHandler = true;
 
     this.onEvent = this.onEvent.bind(this);
+
+    /**
+     * @member {boolean} _debugLogEnabled
+     * @private
+     */
+    this._debugLogEnabled = DEBUG_LOG_ENABLED_DEFAULT;
 
     this.registerListeners();
   }
@@ -79,6 +88,10 @@ abstract class EventHandler {
   }
 
   onEventGeneric (event, data) {
+    if (this._debugLogEnabled) {
+      logger.debug('Enter handling event:', event);
+    }
+
     let eventToFunction = function (event, data) {
       let funcName = 'on' + event.replace('hls', '');
       if (typeof this[funcName] !== 'function') {
@@ -93,6 +106,14 @@ abstract class EventHandler {
       _logger.error(`An internal error happened while handling event ${event}. Error message: "${err.message}". Here is a stacktrace:`, err);
       this.hls.trigger(Event.ERROR, { type: ErrorTypes.OTHER_ERROR, details: ErrorDetails.INTERNAL_EXCEPTION, fatal: false, event: event, err: err });
     }
+
+    if (this._debugLogEnabled) {
+      logger.debug('Done handling event:', event);
+    }
+  }
+
+  setDebugLogEnabled (enabled) {
+    this._debugLogEnabled = enabled;
   }
 }
 

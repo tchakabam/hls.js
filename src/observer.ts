@@ -1,5 +1,9 @@
 import { EventEmitter } from 'eventemitter3';
 
+import { logger } from './utils/logger';
+
+const ENABLE_TRACE_LOG_EVENT_TRIGGER = false;
+
 /**
  * @class
  *
@@ -17,6 +21,8 @@ export class Observer extends EventEmitter {
    * @param {any} data
    */
   trigger (event, ...data) {
+    logger.trace('Event triggered:', event);
+
     this.emit(event, event, ...data);
   }
 }
