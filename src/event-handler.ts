@@ -5,7 +5,7 @@
 */
 
 import { logger } from './utils/logger';
-import { ErrorTypes, ErrorDetails } from './errors';
+import { ErrorType, ErrorDetail } from './errors';
 import { Event } from './events';
 
 import Hls, { HlsConfig } from './hls';
@@ -21,7 +21,7 @@ const FORBIDDEN_EVENT_NAMES = new Set([
   'hlsHandlerDestroyed'
 ]);
 
-abstract class EventHandler {
+export abstract class EventHandler {
   private _hls: Hls;
   private _handledEvents: string[];
   private _useGenericHandler: boolean;
@@ -108,7 +108,7 @@ abstract class EventHandler {
       eventToFunction.call(this, event, data).call();
     } catch (err) {
       _logger.error(`An internal error happened while handling event ${event}. Error message: "${err.message}". Here is a stacktrace:`, err);
-      this.hls.trigger(Event.ERROR, { type: ErrorTypes.OTHER_ERROR, details: ErrorDetails.INTERNAL_EXCEPTION, fatal: false, event: event, err: err });
+      this.hls.trigger(Event.ERROR, { type: ErrorType.OTHER_ERROR, details: ErrorDetail.INTERNAL_EXCEPTION, fatal: false, event: event, err: err });
     }
 
     if (this._debugLogEnabled) {
@@ -120,7 +120,3 @@ abstract class EventHandler {
     this._debugLogEnabled = enabled;
   }
 }
-
-export default EventHandler;
-
-export { EventHandler };

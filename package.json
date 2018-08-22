@@ -1,9 +1,9 @@
 {
   "name": "hls.js",
   "license": "Apache-2.0",
-  "description": "JavaScript HLS client using MediaSourceExtension",
-  "homepage": "https://github.com/video-dev/hls.js",
-  "authors": "Guillaume du Pontavice <g.du.pontavice@gmail.com>",
+  "description": "Extendable HTTP Live Streaming for MediaSource API",
+  "homepage": "https://github.com/tchakabam/hls.js",
+  "authors": "Guillaume du Pontavice <g.du.pontavice@gmail.com>, Stephan Hesse <tchakabam@gmail.com>",
   "repository": {
     "type": "git",
     "url": "https://github.com/video-dev/hls.js"

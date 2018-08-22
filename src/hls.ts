@@ -7,50 +7,53 @@
 import * as URLToolkit from 'url-toolkit';
 
 import {
-  ErrorTypes,
-  ErrorDetails
+  ErrorType,
+  ErrorDetail
 } from './errors';
 
 import { isSupported } from './is-supported';
+
 import { logger, enableLogs } from './utils/logger';
+
 import { hlsDefaultConfig } from './config';
 
 import { Event } from './events';
+
 import { Observer } from './observer';
 
-import EventHandler from './event-handler';
+import AttrList from './m3u8/attr-list';
+import Fragment from './m3u8/fragment';
 
-import AttrList from './utils/attr-list';
-import Fragment from './loader/fragment';
+import { PlaylistLoadingHandler } from './network/playlist-loading.handler';
+import { FragmentLoadingHandler } from './network/fragment-loading.handler';
+import { KeyLoadingHandler } from './network/key-loading.handler';
 
-// Core components
-import PlaylistLoader from './loader/playlist-loader';
-import FragmentLoader from './loader/fragment-loader';
-import KeyLoader from './loader/key-loader';
-import { FragmentTracker } from './controller/fragment-tracker';
-import StreamController from './controller/stream-controller';
-import LevelController from './controller/level-controller';
-import ID3TrackController from './controller/id3-track-controller';
-import AbrController from './controller/abr-controller';
-import BufferController from './controller/buffer-controller';
-import CapLevelController from './controller/cap-level-controller';
-import FPSController from './controller/fps-controller';
+import {AbrHandler} from './abr/abr.handler';
+import {CapLevelHandler} from './abr/cap-level.handler';
 
-// Optional components
-import AudioTrackController from './controller/audio-track-controller';
-import SubtitleTrackController from './controller/subtitle-track-controller';
-import EMEController from './controller/eme-controller';
-import AudioStreamController from './controller/audio-stream-controller';
-import SubtitleStreamController from './controller/subtitle-stream-controller';
-import TimelineController from './controller/timeline-controller';
+import { MSEProxyHandler } from './media-source-api/mse-proxy.handler';
+
+import {FrameDropMonitor} from './abr/frame-drop-monitor.handler';
+
+import {MediaVariantsHandler} from './track-controller/media-variants.handler';
+import {AudioTracksHandler} from './track-controller/audio-tracks.handler';
+import {SubtitleTracksHandler} from './track-controller/subtitle-tracks.handler';
+import {Id3TrackHandler } from './text/id3-track.handler';
+
+import {EMEProxyHandler} from './drm/eme-proxy.handler';
+
+import {TimelineRenderer} from './text/timeline-renderer';
+
+import { FragmentTracker } from './stream-scheduler/fragment-tracker';
+import AudioStreamController from './stream-scheduler/audio-stream-controller';
+import SubtitleStreamController from './stream-scheduler/subtitle-stream-controller';
+import {StreamScheduler} from './stream-scheduler/stream-controller';
 
 declare const __VERSION__: string;
 
 const _logger: any = logger;
 
 const _hlsDefaultConfig: any = hlsDefaultConfig;
-
-export type Injectable = any | null;
 
 export type HlsConfig = {
   autoStartLoad: boolean, // used by stream-controller
@@ -95,18 +98,8 @@ export type HlsConfig = {
   fpsDroppedMonitoringThreshold: number, // used by fps-controller
   appendErrorMaxRetry: number, // used by buffer-controller
 
-  loader: Injectable // IXhrLoader,
-  // loader: FetchLoader,
-  fLoader: Injectable // IFragmentLoader, // used by fragment-loader
-  pLoader: Injectable // IPlaylistLoader, // used by playlist-loader
-
   xhrSetup: (xhr: XMLHttpRequest) => void, // used by xhr-loader
   licenseXhrSetup: (xhr: XMLHttpRequest) => void, // used by eme-controller
-
-  abrController: Injectable // IAbrController,
-  bufferController: Injectable // IBufferController,
-  capLevelController: Injectable // ICapLevelController,
-  fpsController: Injectable // IFPSController,
 
   stretchShortVideoTrack: boolean, // used by mp4-remuxer
   maxAudioFramesDrift: number, // used by mp4-remuxer
@@ -124,15 +117,6 @@ export type HlsConfig = {
   minAutoBitrate: number, // used by hls
   emeEnabled: boolean, // used by eme-controller
   widevineLicenseUrl: string | null, // used by eme-controller
-  requestMediaKeySystemAccessFunc: (keySystem: string, config: MediaKeySystemConfiguration) => Promise<MediaKeySystemAccess> // used by eme-controller
-
-  audioStreamController: Injectable,
-  audioTrackController: Injectable,
-  emeController: Injectable,
-  subtitleStreamController: Injectable // ISubtitleStreamController,
-  subtitleTrackController: Injectable // ISubtitleTrackController,
-  timelineController: Injectable // ITimelineControllerm,
-  cueHandler: Injectable // ICueHandler, // used by timeline-controller
 
   enableCEA708Captions: boolean, // used by timeline-controller
   enableWebVTT: boolean, // used by timeline-controller
@@ -242,14 +226,14 @@ export default class Hls extends Observer {
    * @type {HlsErrorTypes}
    */
   static get ErrorTypes () {
-    return ErrorTypes;
+    return ErrorType;
   }
 
   /**
    * @type {HlsErrorDetails}
    */
   static get ErrorDetails () {
-    return ErrorDetails;
+    return ErrorDetail;
   }
 
   /**
@@ -275,24 +259,29 @@ export default class Hls extends Observer {
   // Fixme: should be in cap-controller
   private _autoLevelCapping: number;
 
-  private abrController: AbrController;
-  private bufferController: BufferController;
-  private capLevelController: CapLevelController;
-  private fpsController: FPSController;
-  private playListLoader: PlaylistLoader;
-  private fragmentLoader: FragmentLoader;
-  private keyLoader: KeyLoader
-  private id3TrackController: ID3TrackController;
-  private levelController: LevelController;
-  private streamController: StreamController;
-  private audioTrackController: AudioTrackController;
-  private subtitleTrackController: SubtitleTrackController;
-  private emeController: EMEController;
+  private fragmentTracker: FragmentTracker;
+  private streamScheduler: StreamScheduler;
   private audioStreamController: AudioStreamController;
   private subtitleStreamController: SubtitleStreamController;
-  private timelineController: TimelineController;
 
-  private coreComponents: EventHandler[] = [];
+  private audioTrackController: AudioTracksHandler;
+  private subtitleTrackController: SubtitleTracksHandler;
+  private levelController: MediaVariantsHandler;
+
+  private timelineRenderer: TimelineRenderer;
+  private id3TrackController: Id3TrackHandler;
+
+  private emeProxy: EMEProxyHandler;
+
+  private abrController: AbrHandler;
+  private capLevelController: CapLevelHandler;
+  private fpsController: FrameDropMonitor;
+
+  private bufferController: MSEProxyHandler;
+
+  private playlistLoader: PlaylistLoadingHandler;
+  private fragmentLoader: FragmentLoadingHandler;
+  private keyLoader: KeyLoadingHandler;
 
   private url: string;
   private media: HTMLMediaElement;
@@ -328,87 +317,35 @@ export default class Hls extends Observer {
      */
     this._autoLevelCapping = -1;
 
-    // core controllers and network loaders
+    // ABR
+    this.abrController = new AbrHandler(this);
+    this.capLevelController = new CapLevelHandler(this);
+    this.fpsController = new FrameDropMonitor(this);
 
-    const abrController = this.abrController = new config.abrController(this);
+    // Network
+    this.playlistLoader = new PlaylistLoadingHandler(this);
+    this.fragmentLoader = new FragmentLoadingHandler(this);
+    this.keyLoader = new KeyLoadingHandler(this);
 
-    const bufferController = new config.bufferController(this);
-    const capLevelController = new config.capLevelController(this);
-    const fpsController = new config.fpsController(this);
-    const playListLoader = new PlaylistLoader(this);
-    const fragmentLoader = new FragmentLoader(this);
-    const keyLoader = new KeyLoader(this);
-    const id3TrackController = new ID3TrackController(this);
 
-    const levelController = this.levelController = new LevelController(this);
+    // Streaming
+    this.fragmentTracker = new FragmentTracker(this); // order matters
+    this.streamScheduler = new StreamScheduler(this, this.fragmentTracker);
+    this.audioStreamController = new AudioStreamController(this, this.fragmentTracker);
+    this.subtitleStreamController = new SubtitleStreamController(this, this.fragmentTracker);
 
-    // FIXME: FragmentTracker must be defined before StreamController because the order of event handling is important
-    const fragmentTracker = new FragmentTracker(this);
-
-    const streamController = this.streamController = new StreamController(this, fragmentTracker);
-
-    // Minimal components
-    this.coreComponents.push(
-      levelController,
-      streamController,
-      playListLoader,
-      fragmentLoader,
-      keyLoader,
-      abrController,
-      bufferController,
-      capLevelController,
-      fpsController,
-      id3TrackController,
-      fragmentTracker
-    );
-
-    // optional alternate audio, subtitles and DRM related components
-    const coreComponents = this.coreComponents;
-
-    // Audio
-
-    let Controller = config.audioStreamController;
-    if (Controller) {
-      this.audioStreamController = new Controller(this, fragmentTracker);
-      coreComponents.push(this.audioStreamController);
-    }
-
-    Controller = config.audioTrackController;
-    if (Controller) {
-      const audioTrackController = new Controller(this);
-      this.audioTrackController = audioTrackController;
-      coreComponents.push(audioTrackController);
-    }
-
-    // Subs
-
-    Controller = config.subtitleTrackController;
-    if (Controller) {
-      const subtitleTrackController = new Controller(this);
-      this.subtitleTrackController = subtitleTrackController;
-      coreComponents.push(subtitleTrackController);
-    }
-
-    Controller = config.subtitleStreamController;
-    if (Controller) {
-      this.subtitleStreamController = new Controller(this, fragmentTracker);
-      coreComponents.push(this.subtitleStreamController);
-    }
-
-    Controller = config.timelineController;
-    if (Controller) {
-      this.timelineController = new Controller(this);
-      coreComponents.push(this.timelineController);
-    }
+    // Track-control
+    this.audioTrackController = new AudioTracksHandler(this);
+    this.levelController = new MediaVariantsHandler(this);
+    this.subtitleTrackController = new SubtitleTracksHandler(this);
 
     // DRM
+    this.emeProxy = new EMEProxyHandler(this);
 
-    Controller = config.emeController;
-    if (Controller) {
-      const emeController = new Controller(this);
-      this.emeController = emeController;
-      coreComponents.push(emeController);
-    }
+    // Decode/Rendering
+    this.id3TrackController = new Id3TrackHandler(this);
+    this.timelineRenderer = new TimelineRenderer(this);
+    this.bufferController = new MSEProxyHandler(this);
   }
 
   get config (): HlsConfig {
@@ -422,9 +359,14 @@ export default class Hls extends Observer {
     _logger.log('destroy');
     this.trigger(Event.DESTROYING);
     this.detachMedia();
+
+    // TODO: register components for "destruction"
+    /*
     this.coreComponents.forEach(component => {
       component.destroy();
     });
+    */
+
     this.url = null;
     this.removeAllListeners();
   }
@@ -475,7 +417,7 @@ export default class Hls extends Observer {
     this.levelController.startLoad();
 
     // FIXME: Shouldn't all of this be kicked off by an event?
-    this.streamController.startLoad(startPosition);
+    this.streamScheduler.startLoad(startPosition);
     if (this.audioStreamController) {
       this.audioStreamController.startLoad(startPosition);
     }
@@ -488,7 +430,7 @@ export default class Hls extends Observer {
     _logger.log('stopLoad');
 
     this.levelController.stopLoad();
-    this.streamController.stopLoad();
+    this.streamScheduler.stopLoad();
     if (this.audioStreamController) {
       this.audioStreamController.stopLoad();
     }
@@ -499,7 +441,7 @@ export default class Hls extends Observer {
    */
   swapAudioCodec (): void {
     _logger.log('swapAudioCodec');
-    this.streamController.swapAudioCodec();
+    this.streamScheduler.swapAudioCodec();
   }
 
   /**
@@ -527,7 +469,7 @@ export default class Hls extends Observer {
    * @type {number}
    */
   get currentLevel (): number {
-    return this.streamController.currentLevel;
+    return this.streamScheduler.currentLevel;
   }
 
   /**
@@ -539,7 +481,7 @@ export default class Hls extends Observer {
   set currentLevel (newLevel: number) {
     _logger.log(`set currentLevel:${newLevel}`);
     this.loadLevel = newLevel;
-    this.streamController.immediateLevelSwitch();
+    this.streamScheduler.immediateLevelSwitch();
   }
 
   /**
@@ -547,7 +489,7 @@ export default class Hls extends Observer {
    * @type {number}
    */
   get nextLevel (): number {
-    return this.streamController.nextLevel;
+    return this.streamScheduler.nextLevel;
   }
 
   /**
@@ -559,7 +501,7 @@ export default class Hls extends Observer {
   set nextLevel (newLevel: number) {
     _logger.log(`set nextLevel: ${newLevel}`);
     this.levelController.manualLevel = newLevel;
-    this.streamController.nextLevelSwitch();
+    this.streamScheduler.nextLevelSwitch();
   }
 
   /**
@@ -776,7 +718,7 @@ export default class Hls extends Observer {
    * @type {number} in seconds
    */
   get liveSyncPosition (): number {
-    return this.streamController.liveSyncPosition;
+    return this.streamScheduler.liveSyncPosition;
   }
 
   /**

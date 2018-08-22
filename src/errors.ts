@@ -1,4 +1,4 @@
-export enum ErrorTypes {
+export enum ErrorType {
   // Identifier for a network error (loading error / timeout ...)
   NETWORK_ERROR = 'networkError',
   // Identifier for a media Error (video/parsing/mediasource error)
@@ -11,7 +11,7 @@ export enum ErrorTypes {
   OTHER_ERROR = 'otherError'
 }
 
-export enum ErrorDetails {
+export enum ErrorDetail {
   KEY_SYSTEM_NO_KEYS = 'keySystemNoKeys',
   KEY_SYSTEM_NO_ACCESS = 'keySystemNoAccess',
   KEY_SYSTEM_NO_SESSION = 'keySystemNoSession',

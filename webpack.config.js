@@ -229,6 +229,7 @@ const multiConfig = [
 ].map(config => merge(baseConfig, config));
 
 multiConfig.push(demoConfig);
+
 multiConfig.push(unitTestsConfig);
 
 // webpack matches the --env arguments to a string; for example, --env.debug.min translates to { debug: true, min: true }
@@ -251,7 +252,11 @@ module.exports = (envArgs) => {
       throw new Error('Hls.js webpack config: Invalid environment parameters');
     }
 
-    configs = [enabledConfig, demoConfig, unitTestsConfig];
+    configs = [
+      enabledConfig,
+      demoConfig,
+      //unitTestsConfig
+    ];
   }
 
   console.log(
