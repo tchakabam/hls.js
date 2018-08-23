@@ -5,7 +5,7 @@ import Demuxer from '../transmux/demux/demuxer';
 
 import { Event } from '../events';
 
-import { FragmentState } from './fragment-tracker';
+import { MediaFragmentState } from './media-fragment-tracker';
 import { MediaFragment } from '../m3u8/media-fragment';
 
 import {PlaylistLoadingHandler} from '../network/playlist-loading.handler'
@@ -483,7 +483,7 @@ export class StreamScheduler extends TaskScheduler {
     }
 
     // Allow backtracked fragments to load
-    if (frag.backtracked || fragState === FragmentState.NOT_LOADED || fragState === FragmentState.PARTIAL) {
+    if (frag.backtracked || fragState === MediaFragmentState.NOT_LOADED || fragState === MediaFragmentState.PARTIAL) {
       frag.autoLevel = this.hls.autoLevelEnabled;
       frag.bitrateTest = this.bitrateTest;
 
@@ -494,7 +494,7 @@ export class StreamScheduler extends TaskScheduler {
       }
 
       this.state = State.FRAG_LOADING;
-    } else if (fragState === FragmentState.APPENDING) {
+    } else if (fragState === MediaFragmentState.APPENDING) {
       // Lower the buffer size and try again
       if (this._reduceMaxBufferLength(frag.duration)) {
         this.fragmentTracker.removeFragment(frag);

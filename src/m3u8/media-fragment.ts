@@ -122,6 +122,10 @@ export class MediaFragment {
     return !!((this.decryptdata && this.decryptdata.uri !== null) && (this.decryptdata.key === null));
   }
 
+  getKey (): string {
+    return `${this.type}_${this.level}_${this.urlId}_${this.sn}`;
+  }
+
   /**
    * @param {ElementaryStreamType} type
    */

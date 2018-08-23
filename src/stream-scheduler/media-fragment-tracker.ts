@@ -1,14 +1,30 @@
 import { Event } from '../events';
 import { EventHandler } from '../event-handler';
+import { MediaFragment } from '../m3u8/media-fragment';
 
-export const FragmentState = {
-  NOT_LOADED: 'NOT_LOADED',
-  APPENDING: 'APPENDING',
-  PARTIAL: 'PARTIAL',
-  OK: 'OK'
+export enum MediaFragmentState {
+  NOT_LOADED = 'NOT_LOADED',
+  APPENDING = 'APPENDING',
+  PARTIAL = 'PARTIAL',
+  OK = 'OK'
 };
 
-export class FragmentTracker extends EventHandler {
+export type MediaFragmentEntity = {
+  body: MediaFragment,
+  range: TimeRanges,
+  buffered: boolean
+}
+
+const DEFAULT_BUFFER_PADDING = 0.2;
+
+export class MediaFragmentTracker extends EventHandler {
+
+  private bufferPadding: number;
+  private fragments: {
+    [key: string]: MediaFragmentEntity
+  };
+  private timeRanges: {};
+
   constructor (hls) {
     super(hls,
       Event.BUFFER_APPENDED,
@@ -16,7 +32,7 @@ export class FragmentTracker extends EventHandler {
       Event.FRAG_LOADED
     );
 
-    this.bufferPadding = 0.2;
+    this.bufferPadding = DEFAULT_BUFFER_PADDING;
 
     this.fragments = Object.create(null);
     this.timeRanges = Object.create(null);
@@ -96,7 +112,7 @@ export class FragmentTracker extends EventHandler {
    * @param {Object} fragment Check the fragment against all sourceBuffers loaded
    */
   detectPartialFragments (fragment) {
-    let fragKey = this.getFragmentKey(fragment);
+    let fragKey = fragment.getKey();
     let fragmentEntity = this.fragments[fragKey];
     if (fragmentEntity) {
       fragmentEntity.buffered = true;
@@ -147,9 +163,7 @@ export class FragmentTracker extends EventHandler {
     };
   }
 
-  getFragmentKey (fragment) {
-    return `${fragment.type}_${fragment.level}_${fragment.urlId}_${fragment.sn}`;
-  }
+
 
   /**
    * Gets the partial fragment for a certain time
@@ -183,17 +197,17 @@ export class FragmentTracker extends EventHandler {
    * @returns {String} Returns the fragment state when a fragment never loaded or if it partially loaded
    */
   getState (fragment) {
-    let fragKey = this.getFragmentKey(fragment);
+    let fragKey = fragment.getKey();
     let fragmentEntity = this.fragments[fragKey];
-    let state = FragmentState.NOT_LOADED;
+    let state = MediaFragmentState.NOT_LOADED;
 
     if (fragmentEntity !== undefined) {
       if (!fragmentEntity.buffered) {
-        state = FragmentState.APPENDING;
+        state = MediaFragmentState.APPENDING;
       } else if (this.isPartial(fragmentEntity) === true) {
-        state = FragmentState.PARTIAL;
+        state = MediaFragmentState.PARTIAL;
       } else {
-        state = FragmentState.OK;
+        state = MediaFragmentState.OK;
       }
     }
 
@@ -232,7 +246,7 @@ export class FragmentTracker extends EventHandler {
     // don't track initsegment (for which sn is not a number)
     // don't track frags used for bitrateTest, they're irrelevant.
     if (Number.isFinite(fragment.sn) && !fragment.bitrateTest) {
-      this.fragments[this.getFragmentKey(fragment)] = {
+      this.fragments[fragment.getKey()] = {
         body: fragment,
         range: Object.create(null),
         buffered: false
@@ -265,8 +279,8 @@ export class FragmentTracker extends EventHandler {
    * @returns {boolean}
    */
   hasFragment (fragment) {
-    const fragKey = this.getFragmentKey(fragment);
-    return this.fragments[fragKey] !== undefined;
+    const fragKey = fragment.getKey();
+    return !! this.fragments[fragKey];
   }
 
   /**
@@ -274,7 +288,7 @@ export class FragmentTracker extends EventHandler {
    * @param {Object} fragment The fragment to remove
    */
   removeFragment (fragment) {
-    let fragKey = this.getFragmentKey(fragment);
+    let fragKey = fragment.getKey();
     delete this.fragments[fragKey];
   }
 

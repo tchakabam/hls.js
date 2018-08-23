@@ -44,7 +44,7 @@ import {EMEProxyHandler} from './drm/eme-proxy.handler';
 
 import {TimelineRenderer} from './text/timeline-renderer';
 
-import { FragmentTracker } from './stream-scheduler/fragment-tracker';
+import { MediaFragmentTracker } from './stream-scheduler/media-fragment-tracker';
 import AudioStreamController from './stream-scheduler/audio-stream-controller';
 import SubtitleStreamController from './stream-scheduler/subtitle-stream-controller';
 import {StreamScheduler} from './stream-scheduler/stream-controller';
@@ -266,7 +266,7 @@ export default class Hls extends Observer {
   // Fixme: should be in cap-controller
   private _autoLevelCapping: number;
 
-  private fragmentTracker: FragmentTracker;
+  private fragmentTracker: MediaFragmentTracker;
   private streamScheduler: StreamScheduler;
   private audioStreamController: AudioStreamController;
   private subtitleStreamController: SubtitleStreamController;
@@ -336,7 +336,7 @@ export default class Hls extends Observer {
 
 
     // Streaming
-    this.fragmentTracker = new FragmentTracker(this); // order matters
+    this.fragmentTracker = new MediaFragmentTracker(this); // order matters
     this.streamScheduler = new StreamScheduler(this, this.fragmentTracker);
     this.audioStreamController = new AudioStreamController(this, this.fragmentTracker);
     this.subtitleStreamController = new SubtitleStreamController(this, this.fragmentTracker);

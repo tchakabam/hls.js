@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import { TaskScheduler } from '../task-scheduler';
 import { BufferHelper } from '../media-source-api/buffer-helper';
 import { findFragmentByPTS, findFragmentByPDT } from '../m3u8/fragment-finders';
-import { FragmentState } from './fragment-tracker';
+import { MediaFragmentState } from './media-fragment-tracker';
 
 import Decrypter from '../crypto/decrypter';
 
@@ -148,7 +148,7 @@ class SubtitleStreamController extends TaskScheduler {
         logger.log(`Loading key for ${foundFrag.sn}`);
         this.state = State.KEY_LOADING;
         this.hls.trigger(Event.KEY_LOADING, { frag: foundFrag });
-      } else if (foundFrag && this.fragmentTracker.getState(foundFrag) === FragmentState.NOT_LOADED) {
+      } else if (foundFrag && this.fragmentTracker.getState(foundFrag) === MediaFragmentState.NOT_LOADED) {
         // only load if fragment is not loaded
         foundFrag.trackId = trackId; // Frags don't know their subtitle track ID, so let's just add that...
         this.fragCurrent = foundFrag;
