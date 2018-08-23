@@ -16,8 +16,11 @@ import { ErrorType, ErrorDetail } from '../errors';
 import { logger } from '../utils/logger';
 
 import MP4Demuxer from '../transmux/demux/mp4demuxer';
-import M3U8Parser from '../m3u8/m3u8-parser';
+import { M3U8Parser } from '../m3u8/m3u8-parser';
 import { NetworkEngine } from './network-engine';
+import { AlternateMediaType, QualityLevel, MediaVariantDetails } from '../hls';
+import { createTrackListsFromM3u8 } from '../track-controller/media-track';
+import { createVariantFromM3u8 } from '../m3u8/media-variant';
 
 const { performance } = window;
 
@@ -26,26 +29,37 @@ const { performance } = window;
  * @enum
  *
  */
-const ContextType = {
-  MANIFEST: 'manifest',
-  LEVEL: 'level',
-  AUDIO_TRACK: 'audioTrack',
-  SUBTITLE_TRACK: 'subtitleTrack'
+enum ContextType {
+  MANIFEST = 'manifest',
+  LEVEL = 'level',
+  AUDIO_TRACK = 'audioTrack',
+  SUBTITLE_TRACK = 'subtitleTrack'
 };
+
+type Context = {
+  id: number,
+  level: number
+  type: ContextType
+  url: string,
+  levelDetails: MediaVariantDetails
+}
 
 /**
  * @enum {string}
  */
-const LevelType = {
-  MAIN: 'main',
-  AUDIO: 'audio',
-  SUBTITLE: 'subtitle'
+enum LevelType {
+  MAIN = 'main',
+  AUDIO = 'audio',
+  SUBTITLE = 'subtitle'
 };
 
 /**
  * @constructor
  */
 export class PlaylistLoadingHandler extends EventHandler {
+
+  private loaders: Partial<{[contextType in ContextType]: NetworkEngine}>;
+
   /**
    * @constructs
    * @param {Hls} hls
@@ -60,11 +74,11 @@ export class PlaylistLoadingHandler extends EventHandler {
     this.loaders = {};
   }
 
-  static get ContextType () {
+  static get ContextType (): typeof ContextType {
     return ContextType;
   }
 
-  static get LevelType () {
+  static get LevelType (): typeof LevelType {
     return LevelType;
   }
 
@@ -79,10 +93,10 @@ export class PlaylistLoadingHandler extends EventHandler {
 
   /**
    * Map context.type to LevelType
-   * @param {{type: ContextType}} context
+   * @param {ContextType} context
    * @returns {LevelType}
    */
-  static mapContextToLevelType (context) {
+  static mapContextToLevelType (context: Context) {
     const { type } = context;
 
     switch (type) {
@@ -95,7 +109,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     }
   }
 
-  static getResponseUrl (response, context) {
+  static getResponseUrl (response, context: Context) {
     let url = response.url;
     // responseURL not supported on some browsers (it is used to detect URL redirection)
     // data-uri mode also not supported (but no need to detect redirection)
@@ -122,11 +136,11 @@ export class PlaylistLoadingHandler extends EventHandler {
     return loader;
   }
 
-  getInternalLoader (context) {
+  getInternalLoader (context: Context) {
     return this.loaders[context.type];
   }
 
-  resetInternalLoader (contextType) {
+  resetInternalLoader (contextType: ContextType) {
     if (this.loaders[contextType]) {
       delete this.loaders[contextType];
     }
@@ -142,7 +156,7 @@ export class PlaylistLoadingHandler extends EventHandler {
         loader.destroy();
       }
 
-      this.resetInternalLoader(contextType);
+      this.resetInternalLoader(<ContextType> contextType);
     }
   }
 
@@ -275,62 +289,31 @@ export class PlaylistLoadingHandler extends EventHandler {
     this._handleNetworkError(context, networkDetails, true);
   }
 
-  _handleMasterPlaylist (response, stats, context, networkDetails) {
+  _handleMasterPlaylist (response, stats, context: Context, networkDetails) {
     const hls = this.hls;
-    const string = response.data;
+    const data = response.data;
 
     const url = PlaylistLoadingHandler.getResponseUrl(response, context);
 
-    const levels = M3U8Parser.parseMasterPlaylist(string, url);
+    const levels: QualityLevel[] = M3U8Parser.parseMasterPlaylist(data, url);
     if (!levels.length) {
       this._handleManifestParsingError(response, context, 'no level found in manifest', networkDetails);
       return;
     }
 
-    // multi level playlist, parse level info
-
-    const audioGroups = levels.map(level => ({
-      id: level.attrs.AUDIO,
-      codec: level.audioCodec
-    }));
-
-    let audioTracks = M3U8Parser.parseMasterPlaylistMedia(string, url, 'AUDIO', audioGroups);
-    let subtitleTracks = M3U8Parser.parseMasterPlaylistMedia(string, url, 'SUBTITLES');
-
-    if (audioTracks.length) {
-      // check if we have found an audio track embedded in main playlist (audio track without URI attribute)
-      let embeddedAudioFound = false;
-      audioTracks.forEach(audioTrack => {
-        if (!audioTrack.url) {
-          embeddedAudioFound = true;
-        }
-      });
-
-      // if no embedded audio track defined, but audio codec signaled in quality level,
-      // we need to signal this main audio track this could happen with playlists with
-      // alt audio rendition in which quality levels (main)
-      // contains both audio+video. but with mixed audio track not signaled
-      if (embeddedAudioFound === false && levels[0].audioCodec && !levels[0].attrs.AUDIO) {
-        logger.log('audio codec signaled in quality level, but no embedded audio track signaled, create one');
-        audioTracks.unshift({
-          type: 'main',
-          name: 'main'
-        });
-      }
-    }
+    const trackSet = createTrackListsFromM3u8(data, url, levels);
 
     hls.trigger(Event.MANIFEST_LOADED, {
       levels,
-      audioTracks,
-      subtitleTracks,
-      subtitles: subtitleTracks, // FIXME: `subtitles` not documented
+      audioTracks: trackSet.AUDIO,
+      subtitleTracks: trackSet.SUBTITLES,
       url,
       stats,
       networkDetails
     });
   }
 
-  _handleTrackOrLevelPlaylist (response, stats, context, networkDetails) {
+  _handleTrackOrLevelPlaylist (response, stats, context: Context, networkDetails) {
     const hls = this.hls;
 
     const { id, level, type } = context;
@@ -341,9 +324,12 @@ export class PlaylistLoadingHandler extends EventHandler {
     const levelId = Number.isFinite(level) ? level : levelUrlId;
     const levelType = PlaylistLoadingHandler.mapContextToLevelType(context);
 
-    const levelDetails = M3U8Parser.parseLevelPlaylist(response.data, url, levelId, levelType, levelUrlId);
+    const levelDetails = createVariantFromM3u8(response.data, url, levelId, levelType, levelUrlId);
 
-    // set stats on level structure
+    // save parsing time
+    stats.tparsed = performance.now();
+
+    // set loading stats on level structure
     levelDetails.tload = stats.tload;
 
     // We have done our first request (Manifest-type) and receive
@@ -365,9 +351,6 @@ export class PlaylistLoadingHandler extends EventHandler {
         networkDetails
       });
     }
-
-    // save parsing time
-    stats.tparsed = performance.now();
 
     // in case we need SIDX ranges
     // return early after calling load for
@@ -393,13 +376,13 @@ export class PlaylistLoadingHandler extends EventHandler {
     this._handlePlaylistLoaded(response, stats, context, networkDetails);
   }
 
-  _handleSidxRequest (response, context) {
+  _handleSidxRequest (response, context: Context) {
     const sidxInfo = MP4Demuxer.parseSegmentIndex(new Uint8Array(response.data));
     sidxInfo.references.forEach((segmentRef, index) => {
       const segRefInfo = segmentRef.info;
       const frag = context.levelDetails.fragments[index];
 
-      if (frag.byteRange.length === 0) {
+      if (!frag.byteRange) {
         frag.rawByteRange = String(1 + segRefInfo.end - segRefInfo.start) + '@' + String(segRefInfo.start);
       }
     });
@@ -453,7 +436,7 @@ export class PlaylistLoadingHandler extends EventHandler {
       type: ErrorType.NETWORK_ERROR,
       details,
       fatal,
-      url: loader.url,
+      url: loader.context.url,
       loader,
       context,
       networkDetails
@@ -499,5 +482,3 @@ export class PlaylistLoadingHandler extends EventHandler {
     }
   }
 }
-
-export default PlaylistLoadingHandler;

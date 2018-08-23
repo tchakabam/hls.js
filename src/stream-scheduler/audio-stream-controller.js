@@ -16,7 +16,7 @@ import { logger } from '../utils/logger';
 import { findFragWithCC } from '../m3u8/discontinuities';
 import { TaskScheduler } from '../task-scheduler';
 import { FragmentState } from './fragment-tracker';
-import { Fragment } from '../m3u8/fragment';
+import { MediaFragment } from '../m3u8/media-fragment';
 
 const { performance } = window;
 
@@ -664,7 +664,7 @@ class AudioStreamController extends TaskScheduler {
         data.endDTS = data.startDTS + fragCurrent.duration;
       }
 
-      fragCurrent.addElementaryStream(Fragment.ElementaryStreamTypes.AUDIO);
+      fragCurrent.addElementaryStream(MediaFragment.ElementaryStreamTypes.AUDIO);
 
       logger.log(`parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb}`);
       LevelHelper.updateFragPTSDTS(track.details, fragCurrent, data.startPTS, data.endPTS);

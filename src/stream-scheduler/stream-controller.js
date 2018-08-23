@@ -6,9 +6,9 @@ import Demuxer from '../transmux/demux/demuxer';
 import { Event } from '../events';
 
 import { FragmentState } from './fragment-tracker';
-import { Fragment } from '../m3u8/fragment';
+import { MediaFragment } from '../m3u8/media-fragment';
 
-import PlaylistLoader from '../network/playlist-loading.handler'
+import {PlaylistLoadingHandler} from '../network/playlist-loading.handler'
 import * as LevelHelper from '../m3u8/level-helper';
 
 import TimeRanges from '../media-source-api/time-ranges';
@@ -506,7 +506,7 @@ export class StreamScheduler extends TaskScheduler {
     if (this.state !== nextState) {
       const previousState = this.state;
       this._state = nextState;
-      logger.log(`main stream:${previousState}->${nextState}`);
+      logger.log(`main stream: ${previousState} -> ${nextState}`);
       this.hls.trigger(Event.STREAM_STATE_TRANSITION, { previousState, nextState });
     }
   }
@@ -516,7 +516,7 @@ export class StreamScheduler extends TaskScheduler {
   }
 
   getBufferedFrag (position) {
-    return this.fragmentTracker.getBufferedFrag(position, PlaylistLoader.LevelType.MAIN);
+    return this.fragmentTracker.getBufferedFrag(position, PlaylistLoadingHandler.LevelType.MAIN);
   }
 
   get currentLevel () {
@@ -1090,11 +1090,11 @@ export class StreamScheduler extends TaskScheduler {
       }
 
       if (data.hasAudio === true) {
-        frag.addElementaryStream(Fragment.ElementaryStreamTypes.AUDIO);
+        frag.addElementaryStream(MediaFragment.ElementaryStreamTypes.AUDIO);
       }
 
       if (data.hasVideo === true) {
-        frag.addElementaryStream(Fragment.ElementaryStreamTypes.VIDEO);
+        frag.addElementaryStream(MediaFragment.ElementaryStreamTypes.VIDEO);
       }
 
       logger.log(`Parsed ${data.type},PTS:[${data.startPTS.toFixed(3)},${data.endPTS.toFixed(3)}],DTS:[${data.startDTS.toFixed(3)}/${data.endDTS.toFixed(3)}],nb:${data.nb},dropped:${data.dropped || 0}`);
@@ -1395,7 +1395,7 @@ export class StreamScheduler extends TaskScheduler {
     const media = this.mediaBuffer ? this.mediaBuffer : this.media;
     if (media) {
       // filter fragments potentially evicted from buffer. this is to avoid memleak on live streams
-      this.fragmentTracker.detectEvictedFragments(Fragment.ElementaryStreamTypes.VIDEO, media.buffered);
+      this.fragmentTracker.detectEvictedFragments(MediaFragment.ElementaryStreamTypes.VIDEO, media.buffered);
     }
     // move to IDLE once flush complete. this should trigger new fragment loading
     this.state = State.IDLE;

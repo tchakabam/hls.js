@@ -1,12 +1,18 @@
 import { MediaVariantDetails } from '../hls';
-import { Fragment } from './fragment';
+import { MediaFragment } from './media-fragment';
+import { M3U8Parser } from './m3u8-parser';
 
-// Q: We should actually rename this class (and private occurences) to `Variant` to finally resolve the confusion? Especially since this is also used
-//    for alternate media and not only quality levels ....
+export function createVariantFromM3u8(data: string, url: string,
+  levelId: number, levelType: string, levelUrlId: number): MediaVariant {
+
+  const levelDetails = M3U8Parser.parseLevelPlaylist(data, url, levelId, levelType, levelUrlId);
+
+  return levelDetails;
+}
 
 export class MediaVariant implements MediaVariantDetails {
   PTSKnown: boolean = false;
-  fragments: Fragment[] = [];
+  fragments: MediaFragment[] = [];
   url: string;
   live: boolean = true;
   averagetargetduration: number = 0;
@@ -20,7 +26,7 @@ export class MediaVariant implements MediaVariantDetails {
   tload: number | null;
   type: string | null = null;
   version: number | null = null;
-  initSegment: Fragment | null = null;
+  initSegment: MediaFragment | null = null;
   needSidxRanges: boolean = false;
 
   audioGroupIds: string[];
@@ -32,5 +38,12 @@ export class MediaVariant implements MediaVariantDetails {
 
   get hasProgramDateTime (): boolean {
     return !!(this.fragments[0] && Number.isFinite(this.fragments[0].programDateTime));
+  }
+}
+
+export class MediaVariantList extends Array<MediaVariant> {
+  constructor(array: MediaVariant[]) {
+    super();
+    array.forEach((track) => this.push(track));
   }
 }

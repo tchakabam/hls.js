@@ -2,28 +2,28 @@ import * as URLToolkit from 'url-toolkit';
 
 import { LevelKey } from './level-key';
 
-export enum FragmentElementaryStreamType {
+export enum MediaFragmentElementaryStreamType {
   AUDIO = 'audio',
   VIDEO = 'video',
   TEXT = 'text'
 }
 
-export type FragmentDecryptData = {
+export type MediaFragmentDecryptData = {
   uri: string,
   key: ArrayBuffer,
   iv: ArrayBuffer,
   method: string
 };
 
-export type FragmentElementaryStreamMap = { [t in FragmentElementaryStreamType]: boolean };
+export type MediaFragmentElementaryStreamMap = { [t in MediaFragmentElementaryStreamType]: boolean };
 
-export type FragmentByteRange = [number, number];
+export type MediaFragmentByteRange = [number, number];
 
-export class Fragment {
+export class MediaFragment {
   private _url: string | null;
-  private _byteRange: FragmentByteRange | null;
-  private _decryptdata: FragmentDecryptData;
-  private _elementaryStreams: FragmentElementaryStreamMap;
+  private _byteRange: MediaFragmentByteRange | null;
+  private _decryptdata: MediaFragmentDecryptData;
+  private _elementaryStreams: MediaFragmentElementaryStreamMap;
 
   public readonly tagList: string[][] = [];
   public readonly programDateTime: number | null;
@@ -58,14 +58,14 @@ export class Fragment {
     this._byteRange = null;
     this._decryptdata = null;
     this._elementaryStreams = {
-      [FragmentElementaryStreamType.AUDIO]: false,
-      [FragmentElementaryStreamType.VIDEO]: false,
-      [FragmentElementaryStreamType.TEXT]: false
+      [MediaFragmentElementaryStreamType.AUDIO]: false,
+      [MediaFragmentElementaryStreamType.VIDEO]: false,
+      [MediaFragmentElementaryStreamType.TEXT]: false
     };
   }
 
   static get ElementaryStreamTypes () {
-    return FragmentElementaryStreamType;
+    return MediaFragmentElementaryStreamType;
   }
 
   get url (): string {
@@ -80,7 +80,7 @@ export class Fragment {
     this._url = value;
   }
 
-  get byteRange (): FragmentByteRange | null {
+  get byteRange (): MediaFragmentByteRange | null {
     if (!this.rawByteRange) {
       return null;
     }
@@ -100,7 +100,7 @@ export class Fragment {
     return this.byteRange ? this.byteRange[1] : null;
   }
 
-  get decryptdata (): FragmentDecryptData {
+  get decryptdata (): MediaFragmentDecryptData {
     if (!this._decryptdata) {
       this._decryptdata = this._createDecryptDataFromLevelkey(this.levelkey, this.sn);
     }
@@ -125,14 +125,14 @@ export class Fragment {
   /**
    * @param {ElementaryStreamType} type
    */
-  addElementaryStream (type: FragmentElementaryStreamType) {
+  addElementaryStream (type: MediaFragmentElementaryStreamType) {
     this._elementaryStreams[type] = true;
   }
 
   /**
    * @param {ElementaryStreamType} type
    */
-  hasElementaryStream (type: FragmentElementaryStreamType): boolean {
+  hasElementaryStream (type: MediaFragmentElementaryStreamType): boolean {
     return this._elementaryStreams[type] === true;
   }
 
@@ -156,7 +156,7 @@ export class Fragment {
    * @param segmentNumber - the fragment's segment number
    * @returns {*} - an object to be applied as a fragment's decryptdata
    */
-  private _createDecryptDataFromLevelkey (levelkey: LevelKey, segmentNumber): FragmentDecryptData {
+  private _createDecryptDataFromLevelkey (levelkey: LevelKey, segmentNumber): MediaFragmentDecryptData {
     let decryptdata: any = levelkey;
 
     if (levelkey && levelkey.method && levelkey.uri && !levelkey.iv) {
@@ -171,7 +171,7 @@ export class Fragment {
   }
 
   private _parseByteRange () {
-    const byteRange: FragmentByteRange = [0, 0];
+    const byteRange: MediaFragmentByteRange = [0, 0];
 
     if (!this.rawByteRange) {
       return;

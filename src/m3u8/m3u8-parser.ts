@@ -1,7 +1,7 @@
 import * as URLToolkit from 'url-toolkit';
 
-import { Fragment } from './fragment';
-import { MediaVariant } from './level';
+import { MediaFragment } from './media-fragment';
+import { MediaVariant } from './media-variant';
 import { LevelKey } from './level-key';
 
 import { AttrList } from './attr-list';
@@ -32,7 +32,7 @@ const LEVEL_PLAYLIST_REGEX_SLOW = /(?:(?:#(EXTM3U))|(?:#EXT-X-(PLAYLIST-TYPE):(.
 
 const MP4_REGEX_SUFFIX = /\.(mp4|m4s|m4v|m4a)$/i;
 
-export default class M3U8Parser {
+export class M3U8Parser {
   static findGroup (groups, mediaGroupId: string) {
     if (!groups) {
       return null;
@@ -158,7 +158,7 @@ export default class M3U8Parser {
   static parseLevelPlaylist (data: string, baseurl: string, id: number, type: string, levelUrlId: number): MediaVariant {
     let level = new MediaVariant(baseurl);
     let levelkey = new LevelKey();
-    let frag = new Fragment();
+    let frag = new MediaFragment();
 
     let currentSN = 0;
     let totalduration = 0;
@@ -199,7 +199,7 @@ export default class M3U8Parser {
           prevFrag = frag;
           totalduration += frag.duration;
 
-          frag = new Fragment();
+          frag = new MediaFragment();
         }
       } else if (result[4]) { // X-BYTERANGE
         frag.rawByteRange = (' ' + result[4]).slice(1);
@@ -295,7 +295,7 @@ export default class M3U8Parser {
           frag.type = type;
           frag.sn = <any> 'initSegment';
           level.initSegment = frag;
-          frag = new Fragment();
+          frag = new MediaFragment();
           frag.rawProgramDateTime = level.initSegment.rawProgramDateTime;
           break;
         default:
@@ -323,7 +323,7 @@ export default class M3U8Parser {
       if (level.fragments.every((frag) => MP4_REGEX_SUFFIX.test(frag.relurl))) {
         _logger.warn('MP4 fragments found but no init segment (probably no MAP, incomplete M3U8), trying to fetch SIDX');
 
-        frag = new Fragment();
+        frag = new MediaFragment();
         frag.relurl = level.fragments[0].relurl;
         frag.baseurl = baseurl;
         frag.level = id;

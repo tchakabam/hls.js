@@ -1,10 +1,10 @@
 import BinarySearch from '../utils/binary-search';
 import { logger } from '../utils/logger';
-import { Fragment } from './fragment';
-import { MediaVariant } from './level';
+import { MediaFragment } from './media-fragment';
+import { MediaVariant } from './media-variant';
 import { QualityLevel } from '../hls';
 
-export function findFirstFragWithCC (fragments: Fragment[], cc: number): Fragment {
+export function findFirstFragWithCC (fragments: MediaFragment[], cc: number): MediaFragment {
   let firstFrag = null;
 
   for (let i = 0; i < fragments.length; i += 1) {
@@ -18,7 +18,7 @@ export function findFirstFragWithCC (fragments: Fragment[], cc: number): Fragmen
   return firstFrag;
 }
 
-export function findFragWithCC (fragments: Fragment[], CC: number): Fragment {
+export function findFragWithCC (fragments: MediaFragment[], CC: number): MediaFragment {
   return BinarySearch.search(fragments, (candidate) => {
     if (candidate.cc < CC) {
       return 1;
@@ -30,7 +30,7 @@ export function findFragWithCC (fragments: Fragment[], CC: number): Fragment {
   });
 }
 
-export function shouldAlignOnDiscontinuities (lastFrag: Fragment, lastLevel: QualityLevel, details: MediaVariant) {
+export function shouldAlignOnDiscontinuities (lastFrag: MediaFragment, lastLevel: QualityLevel, details: MediaVariant) {
   let shouldAlign = false;
   if (lastLevel && lastLevel.details && details) {
     if (details.endCC > details.startCC || (lastFrag && lastFrag.cc < details.startCC)) {
@@ -41,7 +41,7 @@ export function shouldAlignOnDiscontinuities (lastFrag: Fragment, lastLevel: Qua
 }
 
 // Find the first frag in the previous level which matches the CC of the first frag of the new level
-export function findDiscontinuousReferenceFrag (prevDetails: MediaVariant, curDetails: MediaVariant): Fragment {
+export function findDiscontinuousReferenceFrag (prevDetails: MediaVariant, curDetails: MediaVariant): MediaFragment {
   const prevFrags = prevDetails.fragments;
   const curFrags = curDetails.fragments;
 
@@ -81,7 +81,7 @@ export function adjustPts (sliding: number, details: MediaVariant) {
  * @param lastLevel
  * @param details
  */
-export function alignStream (lastFrag: Fragment, lastLevel: QualityLevel, details: MediaVariant) {
+export function alignStream (lastFrag: MediaFragment, lastLevel: QualityLevel, details: MediaVariant) {
   alignDiscontinuities(lastFrag, details, lastLevel);
   if (!details.PTSKnown && lastLevel) {
     // If the PTS wasn't figured out via discontinuity sequence that means there was no CC increase within the level.
@@ -97,7 +97,7 @@ export function alignStream (lastFrag: Fragment, lastLevel: QualityLevel, detail
  * @param lastLevel - The details of the last loaded level
  * @param details - The details of the new level
  */
-export function alignDiscontinuities (lastFrag: Fragment, details: MediaVariant, lastLevel: QualityLevel) {
+export function alignDiscontinuities (lastFrag: MediaFragment, details: MediaVariant, lastLevel: QualityLevel) {
   if (shouldAlignOnDiscontinuities(lastFrag, lastLevel, details)) {
     const referenceFrag = findDiscontinuousReferenceFrag(lastLevel.details, details);
     if (referenceFrag) {

@@ -8,8 +8,8 @@
  * */
 
 import { logger } from '../utils/logger';
-import { MediaVariant } from './level';
-import { Fragment } from './fragment';
+import { MediaVariant } from './media-variant';
+import { MediaFragment } from './media-fragment';
 
 export function addGroupId (level: MediaVariant, type: string, id: string) {
   switch (type) {
@@ -30,7 +30,7 @@ export function addGroupId (level: MediaVariant, type: string, id: string) {
   }
 }
 
-export function updatePTS (fragments: Fragment[], fromIdx: number, toIdx: number) {
+export function updatePTS (fragments: MediaFragment[], fromIdx: number, toIdx: number) {
   let fragFrom = fragments[fromIdx];
   let fragTo = fragments[toIdx];
   let fragToPTS = fragTo.startPTS;
@@ -59,7 +59,7 @@ export function updatePTS (fragments: Fragment[], fromIdx: number, toIdx: number
   }
 }
 
-export function updateFragPTSDTS (details: MediaVariant, frag: Fragment,
+export function updateFragPTSDTS (details: MediaVariant, frag: MediaFragment,
   startPTS: number, endPTS: number, startDTS: number, endDTS: number) {
   // update frag PTS/DTS
   let maxStartPTS = startPTS;

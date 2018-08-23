@@ -22,7 +22,7 @@ import { Event } from './events';
 import { Observer } from './observer';
 
 import { AttrList } from './m3u8/attr-list';
-import { Fragment } from './m3u8/fragment';
+import { MediaFragment } from './m3u8/media-fragment';
 
 import { PlaylistLoadingHandler } from './network/playlist-loading.handler';
 import { FragmentLoadingHandler } from './network/fragment-loading.handler';
@@ -131,9 +131,13 @@ export enum AlternateMediaType {
   SUBTITLES = 'SUBTITLES'
 }
 
+export type AlternateMediaSet = {
+  [type in AlternateMediaType]: AlternateMediaTrack[]
+}
+
 export type MediaVariantDetails = {
   PTSKnown: boolean,
-  fragments: Fragment[],
+  fragments: MediaFragment[],
   url: string,
   readonly hasProgramDateTime: boolean,
   live: boolean,
@@ -148,7 +152,7 @@ export type MediaVariantDetails = {
   tload: number | null,
   type: string | null,
   version: number | null,
-  initSegment: Fragment | null
+  initSegment: MediaFragment | null
   needSidxRanges: boolean,
   audioGroupIds: string[],
   subtitleGroupIds: string[]
@@ -221,21 +225,21 @@ export default class Hls extends Observer {
   /**
    * @type {Events}
    */
-  static get Events () {
+  static get Events (): typeof Event {
     return Event;
   }
 
   /**
    * @type {HlsErrorType}
    */
-  static get ErrorTypes () {
+  static get ErrorTypes (): typeof ErrorType {
     return ErrorType;
   }
 
   /**
    * @type {HlsErrorDetail}
    */
-  static get ErrorDetails () {
+  static get ErrorDetails (): typeof ErrorDetail {
     return ErrorDetail;
   }
 
