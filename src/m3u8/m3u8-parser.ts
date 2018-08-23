@@ -293,7 +293,7 @@ export default class M3U8Parser {
           frag.baseurl = baseurl;
           frag.level = id;
           frag.type = type;
-          frag.sn = -1;
+          frag.sn = <any> 'initSegment';
           level.initSegment = frag;
           frag = new Fragment();
           frag.rawProgramDateTime = level.initSegment.rawProgramDateTime;
@@ -328,7 +328,7 @@ export default class M3U8Parser {
         frag.baseurl = baseurl;
         frag.level = id;
         frag.type = type;
-        frag.sn = -1;
+        frag.sn = <any> 'initSegment';
 
         level.initSegment = frag;
         level.needSidxRanges = true;

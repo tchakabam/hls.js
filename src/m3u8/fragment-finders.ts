@@ -44,6 +44,11 @@ export function findFragmentByPDT (fragments: Fragment[], pdtVal: number, maxFra
  * @param {number} maxFragLookUpTolerance - The amount of time that a fragment's start/end can be within in order to be considered contiguous
  * @returns {*} foundFrag - The best matching fragment
  */
+
+function makeCompareFragmentFn(bufferEnd, maxFragLookUpTolerance) {
+  return (fragment: Fragment) => compareFragmentWithTolerance(fragment, bufferEnd, maxFragLookUpTolerance);
+}
+
 export function findFragmentByPTS (fragPrevious: Fragment, fragments: Fragment[],
   bufferEnd: number = 0, maxFragLookUpTolerance: number = 0): Fragment {
 
@@ -52,11 +57,11 @@ export function findFragmentByPTS (fragPrevious: Fragment, fragments: Fragment[]
   if (fragNext && !compareFragmentWithTolerance(fragNext, bufferEnd, maxFragLookUpTolerance)) {
     return fragNext;
   }
-  return BinarySearch.search(fragments, compareFragmentWithTolerance.bind(null, bufferEnd, maxFragLookUpTolerance));
+  return BinarySearch.search(fragments, makeCompareFragmentFn(bufferEnd, maxFragLookUpTolerance));
 }
 
 /**
- * The test function used by the findFragmentBySn's BinarySearch to look for the best match to the current buffer conditions.
+ * The compare function used by the findFragmentBySn's BinarySearch to look for the best match to the current buffer conditions.
  * @param {Fragment} candidate - The fragment to test
  * @param {number} [bufferEnd = 0] - The end of the current buffered range the playhead is currently within
  * @param {number} [maxFragLookUpTolerance = 0] - The amount of time that a fragment's start can be within in order to be considered contiguous
