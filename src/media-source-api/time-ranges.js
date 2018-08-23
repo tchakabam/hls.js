@@ -1,5 +1,5 @@
 /**
- *  TimeRanges to string helper
+ * TimeRanges helpers
  */
 
 const TimeRanges = {

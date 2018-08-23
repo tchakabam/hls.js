@@ -38,10 +38,15 @@ enum ContextType {
 
 type Context = {
   id: number,
+  loader: NetworkEngine,
   level: number
   type: ContextType
   url: string,
-  levelDetails: MediaVariantDetails
+  levelDetails: MediaVariantDetails,
+  responseType: string
+  isSidxRequest?: boolean,
+  rangeStart?: 0,
+  rangeEnd?: 2048,
 }
 
 /**
@@ -86,7 +91,7 @@ export class PlaylistLoadingHandler extends EventHandler {
    * @param {ContextType} type
    * @returns {boolean}
    */
-  static canHaveQualityLevels (type) {
+  static canHaveQualityLevels (type: ContextType) {
     return (type !== ContextType.AUDIO_TRACK &&
       type !== ContextType.SUBTITLE_TRACK);
   }
@@ -124,9 +129,9 @@ export class PlaylistLoadingHandler extends EventHandler {
    * Returns defaults or configured loader-type overloads (pLoader and loader config params)
    * Default loader is XHRLoader (see utils)
    * @param {object} context
-   * @returns {XHRLoader} or other compatible configured overload
+   * @returns {*} or other compatible configured overload
    */
-  createInternalLoader (context) {
+  createInternalLoader (context: Context): NetworkEngine {
     const config = this.hls.config;
     const loader = new NetworkEngine(config);
 
@@ -136,7 +141,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     return loader;
   }
 
-  getInternalLoader (context: Context) {
+  getInternalLoader (context: Context): NetworkEngine {
     return this.loaders[context.type];
   }
 
@@ -167,22 +172,33 @@ export class PlaylistLoadingHandler extends EventHandler {
   }
 
   onManifestLoading (data) {
-    this.load(data.url, { type: ContextType.MANIFEST, level: 0, id: null });
+    this.load(data.url, {
+      type: ContextType.MANIFEST,
+      level: 0,
+      id: null,
+      url: null,
+      loader: null,
+      levelDetails: null,
+      responseType: null
+    });
   }
 
   onLevelLoading (data) {
-    this.load(data.url, { type: ContextType.LEVEL, level: data.level, id: data.id });
+    this.load(data.url, { type: ContextType.LEVEL, level: data.level, id: data.id, url: null, loader: null, levelDetails: null,
+      responseType: null  });
   }
 
   onAudioTrackLoading (data) {
-    this.load(data.url, { type: ContextType.AUDIO_TRACK, level: null, id: data.id });
+    this.load(data.url, { type: ContextType.AUDIO_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
+      responseType: null  });
   }
 
   onSubtitleTrackLoading (data) {
-    this.load(data.url, { type: ContextType.SUBTITLE_TRACK, level: null, id: data.id });
+    this.load(data.url, { type: ContextType.SUBTITLE_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
+      responseType: null  });
   }
 
-  load (url, context) {
+  load (url: string, context: Context) {
     const config = this.hls.config;
 
     logger.debug(`Loading playlist of type ${context.type}, level: ${context.level}, id: ${context.id}`);
@@ -201,9 +217,9 @@ export class PlaylistLoadingHandler extends EventHandler {
     }
 
     let maxRetry,
-      timeout,
-      retryDelay,
-      maxRetryDelay;
+        timeout,
+        retryDelay,
+        maxRetryDelay;
 
     // apply different configs for retries depending on
     // context (manifest, level, audio/subs playlist)
@@ -253,7 +269,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     return true;
   }
 
-  loadsuccess (response, stats, context, networkDetails = null) {
+  loadsuccess (response, stats, context: Context, networkDetails = null) {
     if (context.isSidxRequest) {
       this._handleSidxRequest(response, context);
       this._handlePlaylistLoaded(response, stats, context, networkDetails);
@@ -281,11 +297,11 @@ export class PlaylistLoadingHandler extends EventHandler {
     }
   }
 
-  loaderror (response, context, networkDetails = null) {
+  loaderror (response, context: Context, networkDetails = null) {
     this._handleNetworkError(context, networkDetails);
   }
 
-  loadtimeout (stats, context, networkDetails = null) {
+  loadtimeout (stats, context: Context, networkDetails = null) {
     this._handleNetworkError(context, networkDetails, true);
   }
 
@@ -365,6 +381,8 @@ export class PlaylistLoadingHandler extends EventHandler {
         id,
         rangeStart: 0,
         rangeEnd: 2048,
+        loader: null,
+        url: null,
         responseType: 'arraybuffer'
       });
       return;
