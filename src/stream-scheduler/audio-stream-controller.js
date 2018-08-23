@@ -16,7 +16,7 @@ import { logger } from '../utils/logger';
 import { findFragWithCC } from '../m3u8/discontinuities';
 import { TaskScheduler } from '../task-scheduler';
 import { FragmentState } from './fragment-tracker';
-import Fragment from '../m3u8/fragment';
+import { Fragment } from '../m3u8/fragment';
 
 const { performance } = window;
 
@@ -276,7 +276,7 @@ class AudioStreamController extends TaskScheduler {
           let foundFrag;
           let maxFragLookUpTolerance = config.maxFragLookUpTolerance;
           const fragNext = fragPrevious ? fragments[fragPrevious.sn - fragments[0].sn + 1] : undefined;
-          let fragmentWithinToleranceTest = (candidate) => {
+          let isFragmentWithinToleranceTest = (candidate) => {
             // offset should be within fragment boundary - config.maxFragLookUpTolerance
             // this is to cope with situations like
             // bufferEnd = 9.991
@@ -308,10 +308,10 @@ class AudioStreamController extends TaskScheduler {
             }
 
             // Prefer the next fragment if it's within tolerance
-            if (fragNext && !fragmentWithinToleranceTest(fragNext)) {
+            if (fragNext && !isFragmentWithinToleranceTest(fragNext)) {
               foundFrag = fragNext;
             } else {
-              foundFrag = BinarySearch.search(fragments, fragmentWithinToleranceTest);
+              foundFrag = BinarySearch.search(fragments, isFragmentWithinToleranceTest);
             }
           } else {
             // reach end of playlist
@@ -571,7 +571,7 @@ class AudioStreamController extends TaskScheduler {
         cc = fragCurrent.cc,
         audioCodec = this.config.defaultAudioCodec || track.audioCodec || 'mp4a.40.2',
         stats = this.stats = data.stats;
-      if (sn === 'initSegment') {
+      if (sn === -1) {
         this.state = State.IDLE;
 
         stats.tparsed = stats.tbuffered = performance.now();
@@ -794,8 +794,8 @@ class AudioStreamController extends TaskScheduler {
     }
 
     switch (data.details) {
-    case ErrorDetails.FRAG_LOAD_ERROR:
-    case ErrorDetails.FRAG_LOAD_TIMEOUT:
+    case ErrorDetail.FRAG_LOAD_ERROR:
+    case ErrorDetail.FRAG_LOAD_TIMEOUT:
       const frag = data.frag;
       // don't handle frag error not related to audio fragment
       if (frag && frag.type !== 'audio') {
@@ -827,10 +827,10 @@ class AudioStreamController extends TaskScheduler {
         }
       }
       break;
-    case ErrorDetails.AUDIO_TRACK_LOAD_ERROR:
-    case ErrorDetails.AUDIO_TRACK_LOAD_TIMEOUT:
-    case ErrorDetails.KEY_LOAD_ERROR:
-    case ErrorDetails.KEY_LOAD_TIMEOUT:
+    case ErrorDetail.AUDIO_TRACK_LOAD_ERROR:
+    case ErrorDetail.AUDIO_TRACK_LOAD_TIMEOUT:
+    case ErrorDetail.KEY_LOAD_ERROR:
+    case ErrorDetail.KEY_LOAD_TIMEOUT:
       //  when in ERROR state, don't switch back to IDLE state in case a non-fatal error is received
       if (this.state !== State.ERROR) {
         // if fatal error, stop processing, otherwise move to IDLE to retry loading
@@ -838,7 +838,7 @@ class AudioStreamController extends TaskScheduler {
         logger.warn(`AudioStreamController: ${data.details} while loading frag, now switching to ${this.state} state ...`);
       }
       break;
-    case ErrorDetails.BUFFER_FULL_ERROR:
+    case ErrorDetail.BUFFER_FULL_ERROR:
       // if in appending state
       if (data.parent === 'audio' && (this.state === State.PARSING || this.state === State.PARSED)) {
         const media = this.mediaBuffer,

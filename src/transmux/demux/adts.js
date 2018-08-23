@@ -28,7 +28,7 @@ export function getAudioConfig (observer, data, offset, audioCodec) {
   adtsObjectType = ((data[offset + 2] & 0xC0) >>> 6) + 1;
   adtsSampleingIndex = ((data[offset + 2] & 0x3C) >>> 2);
   if (adtsSampleingIndex > adtsSampleingRates.length - 1) {
-    observer.trigger(Event.ERROR, { type: ErrorTypes.MEDIA_ERROR, details: ErrorDetail.FRAG_PARSING_ERROR, fatal: true, reason: `invalid ADTS sampling index:${adtsSampleingIndex}` });
+    observer.trigger(Event.ERROR, { type: ErrorType.MEDIA_ERROR, details: ErrorDetail.FRAG_PARSING_ERROR, fatal: true, reason: `invalid ADTS sampling index:${adtsSampleingIndex}` });
     return;
   }
   adtsChanelConfig = ((data[offset + 2] & 0x01) << 2);

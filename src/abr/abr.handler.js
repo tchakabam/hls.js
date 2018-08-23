@@ -7,7 +7,7 @@
 import { Event } from '../events';
 import { EventHandler } from '../event-handler';
 import { BufferHelper } from '../media-source-api/buffer-helper';
-import { ErrorDetails } from '../errors';
+import { ErrorDetail } from '../errors';
 import { logger } from '../utils/logger';
 import EwmaBandWidthEstimator from './ewma-bandwidth-estimator';
 
@@ -193,8 +193,8 @@ export class AbrHandler extends EventHandler {
   onError (data) {
     // stop timer in case of frag loading error
     switch (data.details) {
-    case ErrorDetails.FRAG_LOAD_ERROR:
-    case ErrorDetails.FRAG_LOAD_TIMEOUT:
+    case ErrorDetail.FRAG_LOAD_ERROR:
+    case ErrorDetail.FRAG_LOAD_TIMEOUT:
       this.clearTimer();
       break;
     default:

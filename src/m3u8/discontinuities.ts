@@ -1,7 +1,10 @@
 import BinarySearch from '../utils/binary-search';
 import { logger } from '../utils/logger';
+import { Fragment } from './fragment';
+import { MediaVariant } from './level';
+import { QualityLevel } from '../hls';
 
-export function findFirstFragWithCC (fragments, cc) {
+export function findFirstFragWithCC (fragments: Fragment[], cc: number): Fragment {
   let firstFrag = null;
 
   for (let i = 0; i < fragments.length; i += 1) {
@@ -15,7 +18,7 @@ export function findFirstFragWithCC (fragments, cc) {
   return firstFrag;
 }
 
-export function findFragWithCC (fragments, CC) {
+export function findFragWithCC (fragments: Fragment[], CC: number): Fragment {
   return BinarySearch.search(fragments, (candidate) => {
     if (candidate.cc < CC) {
       return 1;
@@ -27,7 +30,7 @@ export function findFragWithCC (fragments, CC) {
   });
 }
 
-export function shouldAlignOnDiscontinuities (lastFrag, lastLevel, details) {
+export function shouldAlignOnDiscontinuities (lastFrag: Fragment, lastLevel: QualityLevel, details: MediaVariant) {
   let shouldAlign = false;
   if (lastLevel && lastLevel.details && details) {
     if (details.endCC > details.startCC || (lastFrag && lastFrag.cc < details.startCC)) {
@@ -38,7 +41,7 @@ export function shouldAlignOnDiscontinuities (lastFrag, lastLevel, details) {
 }
 
 // Find the first frag in the previous level which matches the CC of the first frag of the new level
-export function findDiscontinuousReferenceFrag (prevDetails, curDetails) {
+export function findDiscontinuousReferenceFrag (prevDetails: MediaVariant, curDetails: MediaVariant): Fragment {
   const prevFrags = prevDetails.fragments;
   const curFrags = curDetails.fragments;
 
@@ -57,7 +60,7 @@ export function findDiscontinuousReferenceFrag (prevDetails, curDetails) {
   return prevStartFrag;
 }
 
-export function adjustPts (sliding, details) {
+export function adjustPts (sliding: number, details: MediaVariant) {
   details.fragments.forEach((frag) => {
     if (frag) {
       let start = frag.start + sliding;
@@ -78,7 +81,7 @@ export function adjustPts (sliding, details) {
  * @param lastLevel
  * @param details
  */
-export function alignStream (lastFrag, lastLevel, details) {
+export function alignStream (lastFrag: Fragment, lastLevel: QualityLevel, details: MediaVariant) {
   alignDiscontinuities(lastFrag, details, lastLevel);
   if (!details.PTSKnown && lastLevel) {
     // If the PTS wasn't figured out via discontinuity sequence that means there was no CC increase within the level.
@@ -94,7 +97,7 @@ export function alignStream (lastFrag, lastLevel, details) {
  * @param lastLevel - The details of the last loaded level
  * @param details - The details of the new level
  */
-export function alignDiscontinuities (lastFrag, details, lastLevel) {
+export function alignDiscontinuities (lastFrag: Fragment, details: MediaVariant, lastLevel: QualityLevel) {
   if (shouldAlignOnDiscontinuities(lastFrag, lastLevel, details)) {
     const referenceFrag = findDiscontinuousReferenceFrag(lastLevel.details, details);
     if (referenceFrag) {
@@ -109,7 +112,7 @@ export function alignDiscontinuities (lastFrag, details, lastLevel) {
  * @param details - The details of the new level
  * @param lastDetails - The details of the last loaded level
  */
-export function alignPDT (details, lastDetails) {
+export function alignPDT (details: MediaVariant, lastDetails: MediaVariant) {
   if (lastDetails && lastDetails.fragments.length) {
     if (!details.hasProgramDateTime || !lastDetails.hasProgramDateTime) {
       return;

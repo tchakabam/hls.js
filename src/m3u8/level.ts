@@ -1,10 +1,10 @@
 import { MediaVariantDetails } from '../hls';
-import Fragment from './fragment';
+import { Fragment } from './fragment';
 
 // Q: We should actually rename this class (and private occurences) to `Variant` to finally resolve the confusion? Especially since this is also used
 //    for alternate media and not only quality levels ....
 
-export default class Level implements MediaVariantDetails {
+export class MediaVariant implements MediaVariantDetails {
   PTSKnown: boolean = false;
   fragments: Fragment[] = [];
   url: string;
@@ -22,6 +22,9 @@ export default class Level implements MediaVariantDetails {
   version: number | null = null;
   initSegment: Fragment | null = null;
   needSidxRanges: boolean = false;
+
+  audioGroupIds: string[];
+  subtitleGroupIds: string[];
 
   constructor (baseUrl: string) {
     this.url = baseUrl;

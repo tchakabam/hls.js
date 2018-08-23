@@ -21,8 +21,8 @@ import { Event } from './events';
 
 import { Observer } from './observer';
 
-import AttrList from './m3u8/attr-list';
-import Fragment from './m3u8/fragment';
+import { AttrList } from './m3u8/attr-list';
+import { Fragment } from './m3u8/fragment';
 
 import { PlaylistLoadingHandler } from './network/playlist-loading.handler';
 import { FragmentLoadingHandler } from './network/fragment-loading.handler';
@@ -150,6 +150,9 @@ export type MediaVariantDetails = {
   version: number | null,
   initSegment: Fragment | null
   needSidxRanges: boolean,
+  audioGroupIds: string[],
+  subtitleGroupIds: string[]
+
 };
 
 export type QualityLevel = {
@@ -223,14 +226,14 @@ export default class Hls extends Observer {
   }
 
   /**
-   * @type {HlsErrorTypes}
+   * @type {HlsErrorType}
    */
   static get ErrorTypes () {
     return ErrorType;
   }
 
   /**
-   * @type {HlsErrorDetails}
+   * @type {HlsErrorDetail}
    */
   static get ErrorDetails () {
     return ErrorDetail;

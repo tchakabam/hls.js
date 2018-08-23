@@ -8,8 +8,10 @@
  * */
 
 import { logger } from '../utils/logger';
+import { MediaVariant } from './level';
+import { Fragment } from './fragment';
 
-export function addGroupId (level, type, id) {
+export function addGroupId (level: MediaVariant, type: string, id: string) {
   switch (type) {
   case 'audio':
     if (!level.audioGroupIds) {
@@ -23,11 +25,15 @@ export function addGroupId (level, type, id) {
     }
     level.subtitleGroupIds.push(id);
     break;
+  default:
+    throw new Error('Unsupported group-id type: ' + type);
   }
 }
 
-export function updatePTS (fragments, fromIdx, toIdx) {
-  let fragFrom = fragments[fromIdx], fragTo = fragments[toIdx], fragToPTS = fragTo.startPTS;
+export function updatePTS (fragments: Fragment[], fromIdx: number, toIdx: number) {
+  let fragFrom = fragments[fromIdx];
+  let fragTo = fragments[toIdx];
+  let fragToPTS = fragTo.startPTS;
   // if we know startPTS[toIdx]
   if (Number.isFinite(fragToPTS)) {
     // update fragment duration.
@@ -53,7 +59,8 @@ export function updatePTS (fragments, fromIdx, toIdx) {
   }
 }
 
-export function updateFragPTSDTS (details, frag, startPTS, endPTS, startDTS, endDTS) {
+export function updateFragPTSDTS (details: MediaVariant, frag: Fragment,
+  startPTS: number, endPTS: number, startDTS: number, endDTS: number) {
   // update frag PTS/DTS
   let maxStartPTS = startPTS;
   if (Number.isFinite(frag.startPTS)) {
@@ -109,14 +116,14 @@ export function updateFragPTSDTS (details, frag, startPTS, endPTS, startDTS, end
   return drift;
 }
 
-export function mergeDetails (oldDetails, newDetails) {
+export function mergeDetails (oldDetails: MediaVariant, newDetails: MediaVariant) {
   let start = Math.max(oldDetails.startSN, newDetails.startSN) - newDetails.startSN,
-    end = Math.min(oldDetails.endSN, newDetails.endSN) - newDetails.startSN,
-    delta = newDetails.startSN - oldDetails.startSN,
-    oldfragments = oldDetails.fragments,
-    newfragments = newDetails.fragments,
-    ccOffset = 0,
-    PTSFrag;
+      end = Math.min(oldDetails.endSN, newDetails.endSN) - newDetails.startSN,
+      delta = newDetails.startSN - oldDetails.startSN,
+      oldfragments = oldDetails.fragments,
+      newfragments = newDetails.fragments,
+      ccOffset = 0,
+      PTSFrag;
 
   // potentially retrieve cached initsegment
   if (newDetails.initSegment && oldDetails.initSegment) {

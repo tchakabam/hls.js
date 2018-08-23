@@ -1,7 +1,3 @@
-/**
- *
- */
-
 import BinarySearch from '../utils/binary-search';
 import { BufferHelper } from '../media-source-api/buffer-helper';
 
@@ -10,7 +6,7 @@ import Demuxer from '../transmux/demux/demuxer';
 import { Event } from '../events';
 
 import { FragmentState } from './fragment-tracker';
-import Fragment from '../m3u8/fragment';
+import { Fragment } from '../m3u8/fragment';
 
 import PlaylistLoader from '../network/playlist-loading.handler'
 import * as LevelHelper from '../m3u8/level-helper';
@@ -963,7 +959,7 @@ export class StreamScheduler extends TaskScheduler {
         stats.tparsed = stats.tbuffered = window.performance.now();
         hls.trigger(Event.FRAG_BUFFERED, { stats: stats, frag: fragCurrent, id: 'main' });
         this.tick();
-      } else if (fragLoaded.sn === 'initSegment') {
+      } else if (fragLoaded.sn === -1) {
         this.state = State.IDLE;
         stats.tparsed = stats.tbuffered = window.performance.now();
         details.initSegment.data = data.payload;

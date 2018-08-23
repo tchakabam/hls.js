@@ -2,7 +2,7 @@ import AESCrypto from './aes-crypto';
 import FastAESKey from './fast-aes-key';
 import AESDecryptor from './aes-decryptor';
 
-import { ErrorTypes, ErrorDetails } from '../errors';
+import { ErrorType, ErrorDetail } from '../errors';
 import { logger } from '../utils/logger';
 
 import Event from '../events';
@@ -84,7 +84,7 @@ class Decrypter {
       this.decrypt(data, key, iv, callback);
     } else {
       logger.error(`decrypting error : ${err.message}`);
-      this.observer.trigger(Event.ERROR, { type: ErrorTypes.MEDIA_ERROR, details: ErrorDetails.FRAG_DECRYPT_ERROR, fatal: true, reason: err.message });
+      this.observer.trigger(Event.ERROR, { type: ErrorType.MEDIA_ERROR, details: ErrorDetail.FRAG_DECRYPT_ERROR, fatal: true, reason: err.message });
     }
   }
 

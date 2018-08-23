@@ -1,6 +1,16 @@
 import * as URLToolkit from 'url-toolkit';
 
-export default class LevelKey {
+export class LevelKey {
+
+  method: string;
+  key: Uint8Array;
+  iv: Uint8Array;
+
+  reluri: string;
+  baseuri: string;
+
+  private _uri: string = null;
+
   constructor () {
     this.method = null;
     this.key = null;

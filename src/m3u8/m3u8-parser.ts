@@ -1,13 +1,13 @@
 import * as URLToolkit from 'url-toolkit';
 
-import Fragment from './fragment';
-import Level from './level';
-import LevelKey from './level-key';
+import { Fragment } from './fragment';
+import { MediaVariant } from './level';
+import { LevelKey } from './level-key';
 
-import AttrList from './attr-list';
+import { AttrList } from './attr-list';
 import { logger } from '../utils/logger';
 import { isCodecType } from '../media-source-api/codecs';
-import { QualityLevel, AlternateMediaTrack } from '../hls';
+import { QualityLevel, AlternateMediaTrack, AlternateMediaType } from '../hls';
 
 const _logger: any = logger;
 
@@ -33,7 +33,7 @@ const LEVEL_PLAYLIST_REGEX_SLOW = /(?:(?:#(EXTM3U))|(?:#EXT-X-(PLAYLIST-TYPE):(.
 const MP4_REGEX_SUFFIX = /\.(mp4|m4s|m4v|m4a)$/i;
 
 export default class M3U8Parser {
-  static findGroup (groups, mediaGroupId) {
+  static findGroup (groups, mediaGroupId: string) {
     if (!groups) {
       return null;
     }
@@ -50,8 +50,9 @@ export default class M3U8Parser {
     return matchingGroup;
   }
 
-  static convertAVC1ToAVCOTI (codec) {
-    let result, avcdata = codec.split('.');
+  static convertAVC1ToAVCOTI (codec: string): string {
+    let result;
+    let avcdata = codec.split('.');
     if (avcdata.length > 2) {
       result = avcdata.shift() + '.';
       result += parseInt(avcdata.shift()).toString(16);
@@ -62,7 +63,7 @@ export default class M3U8Parser {
     return result;
   }
 
-  static resolve (url, baseUrl) {
+  static resolve (url: string, baseUrl: string): string {
     return URLToolkit.buildAbsoluteURL(baseUrl, url, { alwaysNormalize: true });
   }
 
@@ -115,7 +116,7 @@ export default class M3U8Parser {
     return levels;
   }
 
-  static parseMasterPlaylistMedia (string, baseurl, type, audioGroups = []): AlternateMediaTrack[] {
+  static parseMasterPlaylistMedia (data: string, baseurl: string, type: AlternateMediaType, audioGroups = []): AlternateMediaTrack[] {
     const medias: AlternateMediaTrack[] = [];
 
     let result;
@@ -123,7 +124,7 @@ export default class M3U8Parser {
 
     MASTER_PLAYLIST_MEDIA_REGEX.lastIndex = 0;
 
-    while ((result = MASTER_PLAYLIST_MEDIA_REGEX.exec(string)) !== null) {
+    while ((result = MASTER_PLAYLIST_MEDIA_REGEX.exec(data)) !== null) {
       const media: AlternateMediaTrack = {} as any;
       const attrs = new AttrList(result[1]);
       if (attrs['TYPE'] === type) {
@@ -154,8 +155,8 @@ export default class M3U8Parser {
     return medias;
   }
 
-  static parseLevelPlaylist (data: string, baseurl: string, id: number, type: string, levelUrlId: number): Level {
-    let level = new Level(baseurl);
+  static parseLevelPlaylist (data: string, baseurl: string, id: number, type: string, levelUrlId: number): MediaVariant {
+    let level = new MediaVariant(baseurl);
     let levelkey = new LevelKey();
     let frag = new Fragment();
 
@@ -292,7 +293,7 @@ export default class M3U8Parser {
           frag.baseurl = baseurl;
           frag.level = id;
           frag.type = type;
-          frag.sn = 'initSegment';
+          frag.sn = -1;
           level.initSegment = frag;
           frag = new Fragment();
           frag.rawProgramDateTime = level.initSegment.rawProgramDateTime;
@@ -327,7 +328,7 @@ export default class M3U8Parser {
         frag.baseurl = baseurl;
         frag.level = id;
         frag.type = type;
-        frag.sn = 'initSegment';
+        frag.sn = -1;
 
         level.initSegment = frag;
         level.needSidxRanges = true;

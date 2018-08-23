@@ -1,7 +1,7 @@
 import { Event } from '../events';
 import { TaskScheduler } from '../task-scheduler';
 import { logger } from '../utils/logger';
-import { ErrorTypes, ErrorDetails } from '../errors';
+import { ErrorType, ErrorDetail } from '../errors';
 
 /**
  * @class AudioTrackController
@@ -174,7 +174,7 @@ export class AudioTracksHandler extends TaskScheduler {
    */
   onError (data) {
     // Only handle network errors
-    if (data.type !== ErrorTypes.NETWORK_ERROR) {
+    if (data.type !== ErrorType.NETWORK_ERROR) {
       return;
     }
 
@@ -184,7 +184,7 @@ export class AudioTracksHandler extends TaskScheduler {
     }
 
     // If not an audio-track loading error don't handle further
-    if (data.details !== ErrorDetails.AUDIO_TRACK_LOAD_ERROR) {
+    if (data.details !== ErrorDetail.AUDIO_TRACK_LOAD_ERROR) {
       return;
     }
 
@@ -311,8 +311,8 @@ export class AudioTracksHandler extends TaskScheduler {
       logger.error(`No track found for running audio group-ID: ${this._audioGroupId}`);
 
       this.hls.trigger(Event.ERROR, {
-        type: ErrorTypes.MEDIA_ERROR,
-        details: ErrorDetails.AUDIO_TRACK_LOAD_ERROR,
+        type: ErrorType.MEDIA_ERROR,
+        details: ErrorDetail.AUDIO_TRACK_LOAD_ERROR,
         fatal: true
       });
     }

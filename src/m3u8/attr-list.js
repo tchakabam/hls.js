@@ -2,7 +2,7 @@ const DECIMAL_RESOLUTION_REGEX = /^(\d+)x(\d+)$/; // eslint-disable-line no-usel
 const ATTR_LIST_REGEX = /\s*(.+?)\s*=((?:\".*?\")|.*?)(?:,|$)/g; // eslint-disable-line no-useless-escape
 
 // adapted from https://github.com/kanongil/node-m3u8parse/blob/master/attrlist.js
-class AttrList {
+export class AttrList {
   constructor (attrs) {
     if (typeof attrs === 'string') {
       attrs = AttrList.parseAttrList(attrs);
@@ -86,4 +86,3 @@ class AttrList {
   }
 }
 
-export default AttrList;

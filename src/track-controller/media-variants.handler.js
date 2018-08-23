@@ -5,7 +5,7 @@
 import { Event } from '../events';
 import { EventHandler } from '../event-handler';
 import { logger } from '../utils/logger';
-import { ErrorTypes, ErrorDetails } from '../errors';
+import { ErrorType, ErrorDetail } from '../errors';
 import { isCodecSupportedInMp4 } from '../media-source-api/codecs';
 import { addGroupId } from '../m3u8/level-helper';
 
@@ -156,8 +156,8 @@ export class MediaVariantsHandler extends EventHandler {
       });
     } else {
       this.hls.trigger(Event.ERROR, {
-        type: ErrorTypes.MEDIA_ERROR,
-        details: ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR,
+        type: ErrorType.MEDIA_ERROR,
+        details: ErrorDetail.MANIFEST_INCOMPATIBLE_CODECS_ERROR,
         fatal: true,
         url: this.hls.url,
         reason: 'no level with compatible codecs found in manifest'
@@ -209,8 +209,8 @@ export class MediaVariantsHandler extends EventHandler {
     } else {
       // invalid level id given, trigger error
       hls.trigger(Event.ERROR, {
-        type: ErrorTypes.OTHER_ERROR,
-        details: ErrorDetails.LEVEL_SWITCH_ERROR,
+        type: ErrorType.OTHER_ERROR,
+        details: ErrorDetail.LEVEL_SWITCH_ERROR,
         level: newLevel,
         fatal: false,
         reason: 'invalid level idx'
@@ -262,7 +262,7 @@ export class MediaVariantsHandler extends EventHandler {
 
   onError (data) {
     if (data.fatal) {
-      if (data.type === ErrorTypes.NETWORK_ERROR) {
+      if (data.type === ErrorType.NETWORK_ERROR) {
         this.clearTimer();
       }
 
@@ -274,19 +274,19 @@ export class MediaVariantsHandler extends EventHandler {
 
     // try to recover not fatal errors
     switch (data.details) {
-    case ErrorDetails.FRAG_LOAD_ERROR:
-    case ErrorDetails.FRAG_LOAD_TIMEOUT:
-    case ErrorDetails.KEY_LOAD_ERROR:
-    case ErrorDetails.KEY_LOAD_TIMEOUT:
+    case ErrorDetail.FRAG_LOAD_ERROR:
+    case ErrorDetail.FRAG_LOAD_TIMEOUT:
+    case ErrorDetail.KEY_LOAD_ERROR:
+    case ErrorDetail.KEY_LOAD_TIMEOUT:
       levelIndex = data.frag.level;
       fragmentError = true;
       break;
-    case ErrorDetails.LEVEL_LOAD_ERROR:
-    case ErrorDetails.LEVEL_LOAD_TIMEOUT:
+    case ErrorDetail.LEVEL_LOAD_ERROR:
+    case ErrorDetail.LEVEL_LOAD_TIMEOUT:
       levelIndex = data.context.level;
       levelError = true;
       break;
-    case ErrorDetails.REMUX_ALLOC_ERROR:
+    case ErrorDetail.REMUX_ALLOC_ERROR:
       levelIndex = data.level;
       levelError = true;
       break;

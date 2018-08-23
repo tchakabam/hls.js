@@ -1,6 +1,6 @@
 import * as URLToolkit from 'url-toolkit';
 
-import LevelKey from './level-key';
+import { LevelKey } from './level-key';
 
 export enum FragmentElementaryStreamType {
   AUDIO = 'audio',
@@ -19,14 +19,24 @@ export type FragmentElementaryStreamMap = { [t in FragmentElementaryStreamType]:
 
 export type FragmentByteRange = [number, number];
 
-export default class Fragment {
+export class Fragment {
   private _url: string | null;
   private _byteRange: FragmentByteRange | null;
   private _decryptdata: FragmentDecryptData;
   private _elementaryStreams: FragmentElementaryStreamMap;
 
   public readonly tagList: string[][] = [];
-  public readonly programDateTime: number | null = null;
+  public readonly programDateTime: number | null;
+
+  deltaPTS: number;
+  startPTS: number;
+  endPTS: number;
+  startDTS: number;
+  endDTS: number;
+  maxStartPTS: number;
+
+  backtracked: boolean;
+  dropped: boolean;
 
   rawProgramDateTime: string | null = null;
   lastByteRangeEndOffset: number;
@@ -35,7 +45,7 @@ export default class Fragment {
   relurl: string;
   duration: number;
   levelkey: LevelKey;
-  sn: number | string;
+  sn: number; // | string;
   title: string;
   type: string;
   start: number;
