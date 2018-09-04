@@ -9,7 +9,7 @@ import { EventHandler } from '../event-handler';
 import { BufferHelper } from '../media-source-api/buffer-helper';
 import { ErrorDetail } from '../errors';
 import { logger } from '../utils/logger';
-import EwmaBandWidthEstimator from './ewma-bandwidth-estimator';
+import { EwmaBandWidthEstimator } from './ewma-bandwidth-estimator';
 
 const { performance } = window;
 

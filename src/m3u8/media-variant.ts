@@ -1,14 +1,23 @@
 import { MediaVariantDetails } from '../hls';
 import { MediaFragment } from './media-fragment';
 import { M3U8Parser } from './m3u8-parser';
+import { NetworkEngineContextType } from '../network/network-engine';
 
-export function createVariantFromM3u8(data: string, url: string,
-  levelId: number, levelType: string, levelUrlId: number): MediaVariant {
+export function createVariantFromM3u8(
+  data: string, url: string,
+  levelId: number,
+  levelType: MediaVariantType,
+  levelUrlId: number): MediaVariant {
 
   const levelDetails = M3U8Parser.parseLevelPlaylist(data, url, levelId, levelType, levelUrlId);
 
   return levelDetails;
 }
+export enum MediaVariantType {
+  MAIN = 'main',
+  AUDIO = 'audio',
+  SUBTITLE = 'subtitle'
+};
 
 export class MediaVariant implements MediaVariantDetails {
   PTSKnown: boolean = false;

@@ -1,14 +1,17 @@
 /*
  * EWMA Bandwidth Estimator
- *  - heavily inspired from shaka-player
+ *
  * Tracks bandwidth samples and estimates available bandwidth.
+ *
  * Based on the minimum of two exponentially-weighted moving averages with
  * different half-lives.
+ *
+ *
  */
 
-import EWMA from './ewma';
+import { EWMA } from './ewma';
 
-class EwmaBandWidthEstimator {
+export class EwmaBandWidthEstimator {
   constructor (hls, slow, fast, defaultEstimate) {
     this.hls = hls;
     this.defaultEstimate_ = defaultEstimate;
@@ -20,10 +23,10 @@ class EwmaBandWidthEstimator {
 
   sample (durationMs, numBytes) {
     durationMs = Math.max(durationMs, this.minDelayMs_);
-    let bandwidth = 8000 * numBytes / durationMs,
-      // console.log('instant bw:'+ Math.round(bandwidth));
-      // we weight sample using loading duration....
-      weight = durationMs / 1000;
+    let bandwidth = 8000 * numBytes / durationMs;
+    // console.log('instant bw:'+ Math.round(bandwidth));
+    // we weight sample using loading duration
+    let weight = durationMs / 1000;
     this.fast_.sample(weight, bandwidth);
     this.slow_.sample(weight, bandwidth);
   }
@@ -43,9 +46,6 @@ class EwmaBandWidthEstimator {
     } else {
       return this.defaultEstimate_;
     }
-  }
-
-  destroy () {
   }
 }
 export default EwmaBandWidthEstimator;

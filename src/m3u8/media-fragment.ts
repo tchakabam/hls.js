@@ -1,6 +1,8 @@
 import * as URLToolkit from 'url-toolkit';
 
 import { LevelKey } from './level-key';
+import { NetworkEngine, NetworkEngineContextType } from '../network/network-engine';
+import { MediaVariantType } from './media-variant';
 
 export enum MediaFragmentElementaryStreamType {
   AUDIO = 'audio',
@@ -10,8 +12,8 @@ export enum MediaFragmentElementaryStreamType {
 
 export type MediaFragmentDecryptData = {
   uri: string,
-  key: ArrayBuffer,
-  iv: ArrayBuffer,
+  key: Uint8Array,
+  iv: Uint8Array,
   method: string
 };
 
@@ -35,6 +37,7 @@ export class MediaFragment {
   endDTS: number;
   maxStartPTS: number;
 
+  loaded: number;
   backtracked: boolean;
   dropped: boolean;
 
@@ -47,11 +50,14 @@ export class MediaFragment {
   levelkey: LevelKey;
   sn: number; // | string;
   title: string;
-  type: string;
   start: number;
   level: number;
   cc: number;
   urlId: number;
+
+  type: MediaVariantType;
+
+  loader: NetworkEngine;
 
   constructor () {
     this._url = null;

@@ -1,13 +1,14 @@
 import * as URLToolkit from 'url-toolkit';
 
 import { MediaFragment } from './media-fragment';
-import { MediaVariant } from './media-variant';
+import { MediaVariant, MediaVariantType } from './media-variant';
 import { LevelKey } from './level-key';
 
 import { AttrList } from './attr-list';
 import { logger } from '../utils/logger';
 import { isCodecType } from '../media-source-api/codecs';
 import { QualityLevel, AlternateMediaTrack, AlternateMediaType } from '../hls';
+import { NetworkEngineContextType } from '../network/network-engine';
 
 const _logger: any = logger;
 
@@ -155,7 +156,7 @@ export class M3U8Parser {
     return medias;
   }
 
-  static parseLevelPlaylist (data: string, baseurl: string, id: number, type: string, levelUrlId: number): MediaVariant {
+  static parseLevelPlaylist (data: string, baseurl: string, id: number, type: MediaVariantType, levelUrlId: number): MediaVariant {
     let level = new MediaVariant(baseurl);
     let levelkey = new LevelKey();
     let frag = new MediaFragment();

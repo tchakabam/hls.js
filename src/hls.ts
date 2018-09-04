@@ -49,6 +49,8 @@ import AudioStreamController from './stream-scheduler/audio-stream-controller';
 import SubtitleStreamController from './stream-scheduler/subtitle-stream-controller';
 import {StreamScheduler} from './stream-scheduler/stream-controller';
 
+import {NetworkEngineSetupFn} from './network/network-engine';
+
 declare const __VERSION__: string;
 
 const _logger: any = logger;
@@ -97,10 +99,6 @@ export type HlsConfig = {
   fpsDroppedMonitoringPeriod: number, // used by fps-controller
   fpsDroppedMonitoringThreshold: number, // used by fps-controller
   appendErrorMaxRetry: number, // used by buffer-controller
-
-  xhrSetup: (xhr: XMLHttpRequest) => void, // used by xhr-loader
-  licenseXhrSetup: (xhr: XMLHttpRequest) => void, // used by eme-controller
-
   stretchShortVideoTrack: boolean, // used by mp4-remuxer
   maxAudioFramesDrift: number, // used by mp4-remuxer
   forceKeyFrameOnDiscontinuity: boolean, // used by ts-demuxer
@@ -117,6 +115,9 @@ export type HlsConfig = {
   minAutoBitrate: number, // used by hls
   emeEnabled: boolean, // used by eme-controller
   widevineLicenseUrl: string | null, // used by eme-controller
+
+  xhrSetup: NetworkEngineSetupFn, // used by xhr-loader
+  licenseXhrSetup: NetworkEngineSetupFn, // used by eme-controller
 
   enableCEA708Captions: boolean, // used by timeline-controller
   enableWebVTT: boolean, // used by timeline-controller

@@ -17,53 +17,21 @@ import { logger } from '../utils/logger';
 
 import MP4Demuxer from '../transmux/demux/mp4demuxer';
 import { M3U8Parser } from '../m3u8/m3u8-parser';
-import { NetworkEngine } from './network-engine';
+import { NetworkEngine, NetworkEngineContext, NetworkEngineContextType, NetworkEngineContextMap } from './network-engine';
 import { AlternateMediaType, QualityLevel, MediaVariantDetails } from '../hls';
 import { createTrackListsFromM3u8 } from '../track-controller/media-track';
-import { createVariantFromM3u8 } from '../m3u8/media-variant';
+import { createVariantFromM3u8, MediaVariantType } from '../m3u8/media-variant';
 
 const { performance } = window;
 
-/**
- * `type` property values for this loaders' context object
- * @enum
- *
- */
-enum ContextType {
-  MANIFEST = 'manifest',
-  LEVEL = 'level',
-  AUDIO_TRACK = 'audioTrack',
-  SUBTITLE_TRACK = 'subtitleTrack'
-};
-
-type Context = {
-  id: number,
-  loader: NetworkEngine,
-  level: number
-  type: ContextType
-  url: string,
-  levelDetails: MediaVariantDetails,
-  responseType: string
-  isSidxRequest?: boolean,
-  rangeStart?: 0,
-  rangeEnd?: 2048,
-}
-
-/**
- * @enum {string}
- */
-enum LevelType {
-  MAIN = 'main',
-  AUDIO = 'audio',
-  SUBTITLE = 'subtitle'
-};
+type Context = NetworkEngineContext;
 
 /**
  * @constructor
  */
 export class PlaylistLoadingHandler extends EventHandler {
 
-  private loaders: Partial<{[contextType in ContextType]: NetworkEngine}>;
+  private loaders: NetworkEngineContextMap;
 
   /**
    * @constructs
@@ -79,42 +47,42 @@ export class PlaylistLoadingHandler extends EventHandler {
     this.loaders = {};
   }
 
-  static get ContextType (): typeof ContextType {
-    return ContextType;
+  static get ContextType (): typeof NetworkEngineContextType {
+    return NetworkEngineContextType;
   }
 
-  static get LevelType (): typeof LevelType {
-    return LevelType;
+  static get LevelType (): typeof MediaVariantType {
+    return MediaVariantType;
   }
 
   /**
-   * @param {ContextType} type
+   * @param {NetworkEngineContextType} type
    * @returns {boolean}
    */
-  static canHaveQualityLevels (type: ContextType) {
-    return (type !== ContextType.AUDIO_TRACK &&
-      type !== ContextType.SUBTITLE_TRACK);
+  static canHaveQualityLevels (type: NetworkEngineContextType) {
+    return (type !== NetworkEngineContextType.AUDIO_TRACK &&
+      type !== NetworkEngineContextType.SUBTITLE_TRACK);
   }
 
   /**
    * Map context.type to LevelType
-   * @param {ContextType} context
-   * @returns {LevelType}
+   * @param {NetworkEngineContextType} context
+   * @returns {MediaVariantType}
    */
-  static mapContextToLevelType (context: Context) {
+  static mapContextToLevelType (context: Context): MediaVariantType {
     const { type } = context;
 
     switch (type) {
-    case ContextType.AUDIO_TRACK:
-      return LevelType.AUDIO;
-    case ContextType.SUBTITLE_TRACK:
-      return LevelType.SUBTITLE;
+    case NetworkEngineContextType.AUDIO_TRACK:
+      return MediaVariantType.AUDIO;
+    case NetworkEngineContextType.SUBTITLE_TRACK:
+      return MediaVariantType.SUBTITLE;
     default:
-      return LevelType.MAIN;
+      return MediaVariantType.MAIN;
     }
   }
 
-  static getResponseUrl (response, context: Context) {
+  static getResponseUrl (response, context: Context): string {
     let url = response.url;
     // responseURL not supported on some browsers (it is used to detect URL redirection)
     // data-uri mode also not supported (but no need to detect redirection)
@@ -145,7 +113,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     return this.loaders[context.type];
   }
 
-  resetInternalLoader (contextType: ContextType) {
+  resetInternalLoader (contextType: NetworkEngineContextType) {
     if (this.loaders[contextType]) {
       delete this.loaders[contextType];
     }
@@ -161,7 +129,7 @@ export class PlaylistLoadingHandler extends EventHandler {
         loader.destroy();
       }
 
-      this.resetInternalLoader(<ContextType> contextType);
+      this.resetInternalLoader(<NetworkEngineContextType> contextType);
     }
   }
 
@@ -173,7 +141,7 @@ export class PlaylistLoadingHandler extends EventHandler {
 
   onManifestLoading (data) {
     this.load(data.url, {
-      type: ContextType.MANIFEST,
+      type: NetworkEngineContextType.MANIFEST,
       level: 0,
       id: null,
       url: null,
@@ -184,17 +152,17 @@ export class PlaylistLoadingHandler extends EventHandler {
   }
 
   onLevelLoading (data) {
-    this.load(data.url, { type: ContextType.LEVEL, level: data.level, id: data.id, url: null, loader: null, levelDetails: null,
+    this.load(data.url, { type: NetworkEngineContextType.LEVEL, level: data.level, id: data.id, url: null, loader: null, levelDetails: null,
       responseType: null  });
   }
 
   onAudioTrackLoading (data) {
-    this.load(data.url, { type: ContextType.AUDIO_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
+    this.load(data.url, { type: NetworkEngineContextType.AUDIO_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
       responseType: null  });
   }
 
   onSubtitleTrackLoading (data) {
-    this.load(data.url, { type: ContextType.SUBTITLE_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
+    this.load(data.url, { type: NetworkEngineContextType.SUBTITLE_TRACK, level: null, id: data.id, url: null, loader: null, levelDetails: null,
       responseType: null  });
   }
 
@@ -224,13 +192,13 @@ export class PlaylistLoadingHandler extends EventHandler {
     // apply different configs for retries depending on
     // context (manifest, level, audio/subs playlist)
     switch (context.type) {
-    case ContextType.MANIFEST:
+    case NetworkEngineContextType.MANIFEST:
       maxRetry = config.manifestLoadingMaxRetry;
       timeout = config.manifestLoadingTimeOut;
       retryDelay = config.manifestLoadingRetryDelay;
       maxRetryDelay = config.manifestLoadingMaxRetryTimeout;
       break;
-    case ContextType.LEVEL:
+    case NetworkEngineContextType.LEVEL:
       // Disable internal loader retry logic, since we are managing retries in Level Controller
       maxRetry = 0;
       timeout = config.levelLoadingTimeOut;
@@ -257,9 +225,9 @@ export class PlaylistLoadingHandler extends EventHandler {
     };
 
     const loaderCallbacks = {
-      onSuccess: this.loadsuccess.bind(this),
-      onError: this.loaderror.bind(this),
-      onTimeout: this.loadtimeout.bind(this)
+      onSuccess: this._handleLoadSuccess.bind(this),
+      onError: this._handleError.bind(this),
+      onTimeout: this._handleTimeout.bind(this)
     };
 
     logger.debug(`Calling internal loader delegate for URL: ${url}`);
@@ -269,7 +237,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     return true;
   }
 
-  loadsuccess (response, stats, context: Context, networkDetails = null) {
+  private _handleLoadSuccess (response, stats, context: Context, networkDetails = null) {
     if (context.isSidxRequest) {
       this._handleSidxRequest(response, context);
       this._handlePlaylistLoaded(response, stats, context, networkDetails);
@@ -297,15 +265,15 @@ export class PlaylistLoadingHandler extends EventHandler {
     }
   }
 
-  loaderror (response, context: Context, networkDetails = null) {
+  private _handleError (response, context: Context, networkDetails = null) {
     this._handleNetworkError(context, networkDetails);
   }
 
-  loadtimeout (stats, context: Context, networkDetails = null) {
+  private _handleTimeout (stats, context: Context, networkDetails = null) {
     this._handleNetworkError(context, networkDetails, true);
   }
 
-  _handleMasterPlaylist (response, stats, context: Context, networkDetails) {
+  private _handleMasterPlaylist (response, stats, context: Context, networkDetails) {
     const hls = this.hls;
     const data = response.data;
 
@@ -329,7 +297,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     });
   }
 
-  _handleTrackOrLevelPlaylist (response, stats, context: Context, networkDetails) {
+  private _handleTrackOrLevelPlaylist (response, stats, context: Context, networkDetails) {
     const hls = this.hls;
 
     const { id, level, type } = context;
@@ -352,7 +320,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     // not a master playlist but a chunk-list (track/level)
     // We fire the manifest-loaded event anyway with the parsed level-details
     // by creating a single-level structure for it.
-    if (type === ContextType.MANIFEST) {
+    if (type === NetworkEngineContextType.MANIFEST) {
       const singleLevel = {
         url,
         details: levelDetails
@@ -394,7 +362,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     this._handlePlaylistLoaded(response, stats, context, networkDetails);
   }
 
-  _handleSidxRequest (response, context: Context) {
+  private _handleSidxRequest (response, context: Context) {
     const sidxInfo = MP4Demuxer.parseSegmentIndex(new Uint8Array(response.data));
     sidxInfo.references.forEach((segmentRef, index) => {
       const segRefInfo = segmentRef.info;
@@ -408,7 +376,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     context.levelDetails.initSegment.rawByteRange = String(sidxInfo.moovEndOffset) + '@0';
   }
 
-  _handleManifestParsingError (response, context, reason, networkDetails) {
+  private _handleManifestParsingError (response, context, reason, networkDetails) {
     this.hls.trigger(Event.ERROR, {
       type: ErrorType.NETWORK_ERROR,
       details: ErrorDetail.MANIFEST_PARSING_ERROR,
@@ -428,15 +396,15 @@ export class PlaylistLoadingHandler extends EventHandler {
     const loader = this.getInternalLoader(context);
 
     switch (context.type) {
-    case ContextType.MANIFEST:
+    case NetworkEngineContextType.MANIFEST:
       details = (timeout ? ErrorDetail.MANIFEST_LOAD_TIMEOUT : ErrorDetail.MANIFEST_LOAD_ERROR);
       fatal = true;
       break;
-    case ContextType.LEVEL:
+    case NetworkEngineContextType.LEVEL:
       details = (timeout ? ErrorDetail.LEVEL_LOAD_TIMEOUT : ErrorDetail.LEVEL_LOAD_ERROR);
       fatal = false;
       break;
-    case ContextType.AUDIO_TRACK:
+    case NetworkEngineContextType.AUDIO_TRACK:
       details = (timeout ? ErrorDetail.AUDIO_TRACK_LOAD_TIMEOUT : ErrorDetail.AUDIO_TRACK_LOAD_ERROR);
       fatal = false;
       break;
@@ -461,7 +429,7 @@ export class PlaylistLoadingHandler extends EventHandler {
     });
   }
 
-  _handlePlaylistLoaded (response, stats, context, networkDetails) {
+  private _handlePlaylistLoaded (response, stats, context, networkDetails) {
     const { type, level, id, levelDetails } = context;
 
     if (!levelDetails.targetduration) {
@@ -480,7 +448,7 @@ export class PlaylistLoadingHandler extends EventHandler {
       });
     } else {
       switch (type) {
-      case ContextType.AUDIO_TRACK:
+      case NetworkEngineContextType.AUDIO_TRACK:
         this.hls.trigger(Event.AUDIO_TRACK_LOADED, {
           details: levelDetails,
           id,
@@ -488,7 +456,7 @@ export class PlaylistLoadingHandler extends EventHandler {
           networkDetails
         });
         break;
-      case ContextType.SUBTITLE_TRACK:
+      case NetworkEngineContextType.SUBTITLE_TRACK:
         this.hls.trigger(Event.SUBTITLE_TRACK_LOADED, {
           details: levelDetails,
           id,
