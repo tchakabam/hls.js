@@ -12,20 +12,15 @@ import {
 } from './errors';
 
 import { isSupported } from './is-supported';
-
 import { logger, enableLogs } from './utils/logger';
-
 import { hlsDefaultConfig } from './config';
-
 import { Event } from './events';
-
 import { Observer } from './observer';
-
 import { AttrList } from './m3u8/attr-list';
 import { MediaFragment } from './m3u8/media-fragment';
 import { NetworkEngineSetupFn } from './network/network-engine';
 
-import { ReHls } from './re-hls';
+import { ReHls } from './_re-lib/re-hls';
 
 declare const __VERSION__: string;
 
@@ -185,8 +180,6 @@ export type SubtitleTrack = AlternateMediaTrack & {
 export default class Hls extends Observer {
   private static _defaultConfig: HlsConfig;
 
-  private reHls: ReHls = new ReHls();
-
   /**
    * @type {string}
    */
@@ -241,9 +234,10 @@ export default class Hls extends Observer {
   }
 
   private _config: HlsConfig;
+  private _url: string;
+  private _media: HTMLMediaElement;
 
-  private url: string;
-  private media: HTMLMediaElement;
+  private reHls: ReHls = null;
 
   /**
    * Creates an instance of an HLS client that can attach to exactly one `HTMLMediaElement`.
@@ -276,6 +270,14 @@ export default class Hls extends Observer {
     return this._config;
   }
 
+  get url(): string {
+    return this._url;
+  }
+
+  get media(): HTMLMediaElement {
+    return this._media;
+  }
+
   /**
    * Dispose of the instance
    */
@@ -291,7 +293,7 @@ export default class Hls extends Observer {
     });
     */
 
-    this.url = null;
+    this._url = null;
     this.removeAllListeners();
   }
 
@@ -301,8 +303,13 @@ export default class Hls extends Observer {
    */
   attachMedia (media: HTMLMediaElement) {
     _logger.log('attachMedia');
-    this.media = media;
+    this._media = media;
     this.trigger(Event.MEDIA_ATTACHING, { media: media });
+
+    this.reHls = new ReHls(media);
+    if (this.url) {
+      this.reHls.setUrl(this.url);
+    }
   }
 
   /**
@@ -311,7 +318,10 @@ export default class Hls extends Observer {
   detachMedia (): void {
     _logger.log('detachMedia');
     this.trigger(Event.MEDIA_DETACHING);
-    this.media = null;
+    this._media = null;
+
+    this.reHls.shutdown();
+    this.reHls = null;
   }
 
   /**
@@ -323,9 +333,11 @@ export default class Hls extends Observer {
     // TODO: move URL building to reHls
     url = URLToolkit.buildAbsoluteURL(window.location.href, url, { alwaysNormalize: true });
     _logger.log(`loadSource: ${url}`);
-    this.url = url;
+    this._url = url;
 
-    this.reHls.setUrl(url);
+    if (this.reHls) {
+      this.reHls.setUrl(url);
+    }
 
     // when attaching to a source URL, trigger a manifest-loading event
     this.trigger(Event.MANIFEST_LOADING, { url: url });
@@ -368,7 +380,7 @@ export default class Hls extends Observer {
    */
   recoverMediaError (): void {
     _logger.log('recoverMediaError');
-    let media = this.media;
+    let media = this._media;
     this.detachMedia();
     this.attachMedia(media);
   }
