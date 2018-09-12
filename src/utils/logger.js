@@ -4,7 +4,7 @@ const ENABLE_LOGS_DEFAULT = true; // the default setting on lib initialization
 
 const ENABLE_TRACE_LOGS = false;
 
-const DEBUG_PREFIX = ''; // use this to prefix Hls.js when needed for debugging
+const DEBUG_PREFIX = '{re-Hls}'; // use this to prefix Hls.js when needed for debugging
 const DEBUG_PREPEND_TIMESTAMP = false; // use this to prepend with timestamp when needed for debugging (makes line-number opaque)
 
 const noop = () => void 0;
